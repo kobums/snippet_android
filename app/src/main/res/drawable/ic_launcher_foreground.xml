@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 런처 아이콘 전경 — Flutter 앱과 동일한 책 이미지(흰 배경에 검은 펼친 책).
+     adaptive icon 마스크의 안전 영역(중앙 66/108)에 책이 들어오도록 12% 인셋.
+     테마(모노크롬) 아이콘은 ic_launcher_monochrome.xml 벡터를 사용한다. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_launcher_book"
+    android:inset="12%" />

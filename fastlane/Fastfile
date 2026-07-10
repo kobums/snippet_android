@@ -1,0 +1,177 @@
+default_platform(:android)
+
+# ---------------------------------------------------------
+# Jetpack Compose 네이티브 앱 배포 (Flutter 아님 — flutter build 없음)
+# 버전은 app/build.gradle.kts 의 defaultConfig 에 저장됨:
+#   versionCode → Play 업로드마다 반드시 증가해야 하는 정수
+#   versionName → 표시 버전 (예: 1.0.0)
+# ---------------------------------------------------------
+
+JAVA_HOME_PATH = "/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+AAB_PATH       = "app/build/outputs/bundle/release/app-release.aab"
+
+def gradle_path
+  File.expand_path("../app/build.gradle.kts", __dir__)
+end
+
+def current_version_code
+  File.read(gradle_path)[/versionCode\s*=\s*(\d+)/, 1].to_i
+end
+
+def current_version_name
+  File.read(gradle_path)[/versionName\s*=\s*"([^"]+)"/, 1]
+end
+
+# code/name 중 nil 인 항목은 그대로 둠
+def set_version(code: nil, name: nil)
+  content = File.read(gradle_path)
+  content = content.sub(/versionCode\s*=\s*\d+/, "versionCode = #{code}") if code
+  content = content.sub(/versionName\s*=\s*"[^"]+"/, "versionName = \"#{name}\"") if name
+  File.write(gradle_path, content)
+end
+
+def bump_patch(version)
+  parts = version.split(".").map(&:to_i)
+  parts << 0 while parts.size < 3
+  parts[2] += 1
+  parts.take(3).join(".")
+end
+
+def build_aab
+  Dir.chdir(File.expand_path("..", __dir__)) do
+    sh("JAVA_HOME=\"#{JAVA_HOME_PATH}\" ./gradlew bundleRelease")
+  end
+end
+
+# 마지막 릴리즈 태그(v*) 이후의 feat/fix 커밋으로 노트 자동 생성 (Play 제한 500자)
+def git_changelog
+  root = File.expand_path("..", __dir__)
+  last_tag = `git -C "#{root}" describe --tags --abbrev=0 --match 'v*' 2>/dev/null`.strip
+  range = last_tag.empty? ? "HEAD" : "#{last_tag}..HEAD"
+  log = `git -C "#{root}" log #{range} --no-merges --pretty=format:%s 2>/dev/null`.strip
+  return "" if log.empty?
+
+  lines = log.split("\n")
+    .reject { |l| l =~ /^(chore|ci|docs|test|style|build|release)(\(|:)/ }
+    .map { |l| "- " + l.sub(/^\w+(\([^)]*\))?!?:\s*/, "").strip }
+    .uniq
+  return "" if lines.empty?
+
+  notes = lines.join("\n")
+  notes.length > 500 ? notes[0, 497] + "..." : notes
+end
+
+# 릴리즈 노트 우선순위: notes: 옵션 > changelogs/{versionName}.txt > git 커밋 자동 생성 > 기본 문구
+def resolve_changelog(version_name, notes)
+  return notes.strip unless notes.to_s.strip.empty?
+
+  changelog_path = File.expand_path("changelogs/#{version_name}.txt", __dir__)
+  return File.read(changelog_path).strip if File.exist?(changelog_path)
+
+  auto = git_changelog
+  return auto unless auto.empty?
+
+  "버그 수정 및 성능 개선"
+end
+
+# 릴리즈 노트 → metadata/ko-KR/changelogs/{versionCode}.txt
+def write_changelog(version_name, version_code, notes = nil)
+  changelog = resolve_changelog(version_name, notes)
+  puts "📝 릴리즈 노트:\n#{changelog}"
+
+  require 'fileutils'
+  meta_dir = File.expand_path("metadata/ko-KR/changelogs", __dir__)
+  FileUtils.mkdir_p(meta_dir)
+  File.write("#{meta_dir}/#{version_code}.txt", changelog)
+end
+
+# 업로드 성공 후 태그 생성 — 다음 자동 노트의 기준점 (로컬 태그)
+def tag_release(version_name, version_code)
+  root = File.expand_path("..", __dir__)
+  system("git", "-C", root, "tag", "-f", "v#{version_name}-#{version_code}")
+end
+
+platform :android do
+
+  # -------------------------------------------------------
+  # 빌드만 (서명된 AAB 생성)
+  # 사용법: cd snippet_android && fastlane build
+  # -------------------------------------------------------
+  desc "빌드만 (AAB 생성)"
+  lane :build do
+    build_aab
+  end
+
+  # -------------------------------------------------------
+  # 내부 테스트 트랙 업로드 (draft) — versionCode +1
+  # 사용법: cd snippet_android && fastlane internal
+  # -------------------------------------------------------
+  desc "내부 테스트 트랙에 업로드"
+  lane :internal do |options|
+    name     = current_version_name
+    new_code = current_version_code + 1
+    set_version(code: new_code)
+    puts "📦 버전: #{name} (#{new_code})"
+
+    build_aab
+    write_changelog(name, new_code, options[:notes])
+
+    upload_to_play_store(
+      track: "internal",
+      aab: AAB_PATH,
+      release_status: "draft",
+      metadata_path: File.expand_path("metadata", __dir__)
+    )
+    tag_release(name, new_code)
+    puts "✅ v#{name} (#{new_code}) Play Store 내부 테스트 업로드 완료!"
+  end
+
+  # -------------------------------------------------------
+  # 클로즈드(알파) 테스트 트랙 업로드 — versionCode +1
+  # 사용법: cd snippet_android && fastlane alpha
+  # -------------------------------------------------------
+  desc "알파 트랙에 업로드"
+  lane :alpha do |options|
+    name     = current_version_name
+    new_code = current_version_code + 1
+    set_version(code: new_code)
+    puts "📦 버전: #{name} (#{new_code})"
+
+    build_aab
+    write_changelog(name, new_code, options[:notes])
+
+    upload_to_play_store(
+      track: "alpha",
+      aab: AAB_PATH,
+      metadata_path: File.expand_path("metadata", __dir__)
+    )
+    tag_release(name, new_code)
+    puts "✅ v#{name} (#{new_code}) Play Store 알파 업로드 완료!"
+  end
+
+  # -------------------------------------------------------
+  # 프로덕션 배포 — patch 버전 +1, versionCode +1
+  # 사용법: cd snippet_android && fastlane deploy
+  # -------------------------------------------------------
+  desc "프로덕션 배포"
+  lane :deploy do |options|
+    new_name = bump_patch(current_version_name)
+    new_code = current_version_code + 1
+    set_version(code: new_code, name: new_name)
+    puts "📦 버전: #{new_name} (#{new_code})"
+
+    build_aab
+    write_changelog(new_name, new_code, options[:notes])
+
+    upload_to_play_store(
+      track: "production",
+      aab: AAB_PATH,
+      metadata_path: File.expand_path("metadata", __dir__),
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+    tag_release(new_name, new_code)
+    puts "✅ v#{new_name} (#{new_code}) Play Store production 업로드 완료!"
+  end
+
+end

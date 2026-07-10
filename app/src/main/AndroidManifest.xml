@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature
@@ -36,12 +36,18 @@
             </intent-filter>
         </activity>
 
-        <!-- 독서 세션 타이머 Foreground Service -->
+        <!-- 독서 세션 타이머 Foreground Service
+             specialUse: 순수 로컬 타이머(네트워크 없음)라 기존 FGS 타입에 해당하지 않음.
+             dataSync는 용도 불일치 + Android 15부터 24시간당 6시간 제한이 걸려 부적합. -->
         <service
             android:name=".reading.ReadingTimerService"
-            android:foregroundServiceType="dataSync"
+            android:foregroundServiceType="specialUse"
             android:exported="false"
-            android:stopWithTask="false" />
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-initiated reading session stopwatch: keeps elapsed-time tracking running while the app is in background and shows an ongoing notification with pause/finish controls. No network transfer." />
+        </service>
 
         <!-- 홈 화면 위젯 (오늘의 스니펫) -->
         <receiver

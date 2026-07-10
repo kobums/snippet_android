@@ -1,0 +1,2 @@
+- fastlane Play 배포 파이프라인 및 릴리즈 노트 자동 생성 추가
+- Jetpack Compose 네이티브 앱 초기 구조 임포트 (#2)

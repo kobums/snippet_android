@@ -5,4 +5,15 @@ local.properties
 .DS_Store
 captures/
 *.keystore
+*.jks
 google-services.json
+
+# --- 서명 / 배포 시크릿 (절대 커밋 금지) ---
+keystore.properties
+fastlane/google-play-key.json
+
+# --- Fastlane ---
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/test_output
+fastlane/README.md

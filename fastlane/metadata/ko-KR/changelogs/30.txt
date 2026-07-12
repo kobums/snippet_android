@@ -1,0 +1,1 @@
+- 세션 타이머 FGS 타입을 dataSync에서 specialUse로 변경

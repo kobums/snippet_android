@@ -204,6 +204,10 @@ private fun MainShell() {
                                 onNavigateToBookSearch = { query ->
                                     navController.navigate("bookSearch/${BookType.WISH.name}?query=$query")
                                 },
+                                onNavigateToBookDetail = { book ->
+                                    NavHolder.pendingBook = book
+                                    navController.navigate("bookDetail")
+                                },
                                 bottomOverlayPadding = innerPadding.calculateBottomPadding(),
                             )
                             SnippetTab.Records -> {

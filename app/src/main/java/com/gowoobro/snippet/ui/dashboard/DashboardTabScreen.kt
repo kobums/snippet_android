@@ -104,6 +104,7 @@ fun DashboardTabScreen(
     onNavigateToCalendar: (year: Int, month: Int) -> Unit = { _, _ -> },
     onNavigateToStats: () -> Unit = {},
     onNavigateToBookSearch: (query: String) -> Unit = {},
+    onNavigateToBookDetail: (UserBookDto) -> Unit = {},
     // 엣지-투-엣지 시 하단 내비게이션 바에 콘텐츠가 가리지 않도록 하는 오버레이 패딩
     bottomOverlayPadding: Dp = 0.dp,
 ) {
@@ -162,6 +163,7 @@ fun DashboardTabScreen(
                     selectedSegment = progressSegment,
                     onSegmentChange = { progressSegment = it },
                     onRefresh = vm::refresh,
+                    onBookClick = onNavigateToBookDetail,
                     modifier = Modifier.fillMaxSize(),
                 )
                 else -> DashboardLibraryTab(
@@ -171,6 +173,7 @@ fun DashboardTabScreen(
                     contentBottomPadding = contentBottomPadding,
                     onQueryChange = vm::setLibraryQuery,
                     onRefresh = vm::refresh,
+                    onBookClick = onNavigateToBookDetail,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -412,6 +415,7 @@ private fun DashboardProgressTab(
     selectedSegment: Int,
     onSegmentChange: (Int) -> Unit,
     onRefresh: () -> Unit,
+    onBookClick: (UserBookDto) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val segments = listOf("대기중", "읽는중", "완독")
@@ -462,6 +466,7 @@ private fun DashboardProgressTab(
                 items(filtered.size) { idx ->
                     ProgressBookRow(
                         book = filtered[idx],
+                        onClick = { onBookClick(filtered[idx]) },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }
@@ -483,6 +488,7 @@ private fun DashboardLibraryTab(
     contentBottomPadding: Dp,
     onQueryChange: (String) -> Unit,
     onRefresh: () -> Unit,
+    onBookClick: (UserBookDto) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val filtered = state.filteredLibraryBooks
@@ -526,6 +532,7 @@ private fun DashboardLibraryTab(
                 items(filtered.size) { idx ->
                     LibraryBookRow(
                         book = filtered[idx],
+                        onClick = { onBookClick(filtered[idx]) },
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }
@@ -975,12 +982,15 @@ private fun RecentSessionRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProgressBookRow(
     book: UserBookDto,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -1035,12 +1045,15 @@ private fun ProgressBookRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LibraryBookRow(
     book: UserBookDto,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),

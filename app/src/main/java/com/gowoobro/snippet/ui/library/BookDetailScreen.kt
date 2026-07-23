@@ -1,5 +1,6 @@
 package com.gowoobro.snippet.ui.library
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +29,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -54,6 +56,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -258,6 +261,7 @@ fun BookDetailScreen(
                         }
                     },
                     onTypeChange = { newType -> vm.updateBookType(book.id, newType) },
+                    onExtendReturn = { vm.extendReturnDate(book.id, book.returnDate) },
                     onRatingClick = { showRatingSheet = true },
                     onStartReading = {
                         onNavigateToTimer(book.id, book.title, book.readPage)
@@ -292,6 +296,7 @@ private fun BookInfoTab(
     book: UserBookDto,
     onStatusChange: (BookStatus) -> Unit,
     onTypeChange: (BookType) -> Unit,
+    onExtendReturn: () -> Unit = {},
     onRatingClick: () -> Unit,
     onStartReading: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -346,6 +351,54 @@ private fun BookInfoTab(
                                     label = { Text(label) },
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 반납 카드 (대출일 때) — 반납 예정일 + D-day + 1주 연기
+        if (book.type == BookType.BORROW) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column {
+                            Text("반납 예정일", style = MaterialTheme.typography.titleSmall)
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Text(
+                                    text = book.returnDate?.take(10) ?: "미설정",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                book.returnDate?.let { returnDate ->
+                                    val dday = computeDday(returnDate)
+                                    Text(
+                                        text = ddayLabel(dday),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White,
+                                        modifier = Modifier
+                                            .background(ddayColor(dday), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
+                        }
+                        FilledTonalButton(
+                            onClick = onExtendReturn,
+                            enabled = book.returnDate != null,
+                        ) {
+                            Text("1주 연기")
                         }
                     }
                 }

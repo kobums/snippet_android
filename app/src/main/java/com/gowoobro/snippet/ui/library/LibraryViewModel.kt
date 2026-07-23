@@ -263,6 +263,33 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    /** 반납 예정일 1주 연장. (반납일은 생성/전환 시점에 항상 채워지므로 미설정이면 아무 것도 안 함) */
+    fun extendReturnDate(id: Long, currentReturnDate: String?) {
+        val base = currentReturnDate
+            ?.take(10)
+            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            ?: return
+        viewModelScope.launch {
+            val result = safeApiCall {
+                container.userBookApi.update(id, UserBookUpdateRequest(returnDate = base.plusDays(7).toString()))
+            }
+            when (result) {
+                is AppResult.Success -> {
+                    _uiState.update { state ->
+                        // 상세 화면이 allBooks에서 책을 찾으므로, 목록에 없으면 추가해 변경이 반영되게 한다
+                        val updated = if (state.allBooks.any { it.id == id }) {
+                            state.allBooks.map { if (it.id == id) result.data else it }
+                        } else {
+                            state.allBooks + result.data
+                        }
+                        state.copy(allBooks = updated)
+                    }
+                }
+                is AppResult.Failure -> _uiState.update { it.copy(snackbarMessage = result.error.message) }
+            }
+        }
+    }
+
     fun updateBookRating(id: Long, rating: Int) {
         viewModelScope.launch {
             val result = safeApiCall {

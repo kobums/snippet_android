@@ -219,6 +219,10 @@ private fun MainShell() {
                                     onNavigateToAddRecord = { type ->
                                         navController.navigate("addRecord/${type.name}")
                                     },
+                                    onNavigateToBookDetail = { book ->
+                                        NavHolder.pendingBook = book
+                                        navController.navigate("bookDetail")
+                                    },
                                     refreshSignal = recordsRefresh,
                                     bottomOverlayPadding = innerPadding.calculateBottomPadding(),
                                 )
@@ -300,6 +304,10 @@ private fun MainShell() {
                         initialYear = year,
                         initialMonth = month,
                         onBack = { navController.popBackStack() },
+                        onNavigateToBookDetail = { book ->
+                            NavHolder.pendingBook = book
+                            navController.navigate("bookDetail")
+                        },
                     )
                 }
             }

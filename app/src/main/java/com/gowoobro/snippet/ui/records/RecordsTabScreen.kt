@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +66,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gowoobro.snippet.core.di.appContainer
 import com.gowoobro.snippet.core.model.RecordDto
 import com.gowoobro.snippet.core.model.RecordType
+import com.gowoobro.snippet.core.model.UserBookDto
+import com.gowoobro.snippet.core.network.getOrDefault
+import com.gowoobro.snippet.core.network.getOrNull
+import com.gowoobro.snippet.core.network.safeApiCall
 import com.gowoobro.snippet.ui.components.EmptyState
 import com.gowoobro.snippet.ui.components.FloatingSubTabBar
 import com.gowoobro.snippet.ui.components.SectionHeader
@@ -86,6 +91,7 @@ private val FloatingBarAreaHeight = 60.dp
 fun RecordsTabScreen(
     onNavigateToAddRecord: (RecordType) -> Unit = {},
     onNavigateToEditRecord: (RecordDto) -> Unit = {},
+    onNavigateToBookDetail: (UserBookDto) -> Unit = {},
     // 기록 추가 화면에서 돌아왔을 때 목록 새로고침 트리거 (값이 바뀌면 재조회)
     refreshSignal: Int = 0,
     // 엣지-투-엣지 시 하단 내비게이션 바에 콘텐츠가 가리지 않도록 하는 오버레이 패딩
@@ -99,6 +105,23 @@ fun RecordsTabScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    // 책 그룹 헤더 탭 → 서재에서 책을 찾아 상세로 이동
+    val openBookDetailByBookId: (Long) -> Unit = { bookId ->
+        scope.launch {
+            safeApiCall { context.appContainer.userBookApi.getAll() }
+                .getOrDefault(emptyList())
+                .firstOrNull { it.bookId == bookId }
+                ?.let(onNavigateToBookDetail)
+        }
+    }
+    val openBookDetailByUserBookId: (Long) -> Unit = { userBookId ->
+        scope.launch {
+            safeApiCall { context.appContainer.userBookApi.getById(userBookId) }
+                .getOrNull()
+                ?.let(onNavigateToBookDetail)
+        }
+    }
 
     // 탭: 0=스니펫, 1=일기, 2=리뷰, 3=세션
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
@@ -174,6 +197,7 @@ fun RecordsTabScreen(
                         )
                     },
                     onEditRecord = onNavigateToEditRecord,
+                    onBookHeaderClick = openBookDetailByBookId,
                     onDeleteRecord = { record ->
                         vm.deleteRecord(
                             id = record.id,
@@ -193,6 +217,7 @@ fun RecordsTabScreen(
                     contentTopPadding = contentTopPadding,
                     contentBottomPadding = contentBottomPadding,
                     onRefresh = vm::loadSessions,
+                    onBookHeaderClick = openBookDetailByUserBookId,
                 )
             }
         }
@@ -263,6 +288,7 @@ private fun RecordListContent(
     contentBottomPadding: Dp,
     onRefresh: () -> Unit,
     onEditRecord: (RecordDto) -> Unit,
+    onBookHeaderClick: (Long) -> Unit,
     onDeleteRecord: (RecordDto) -> Unit,
 ) {
     PullToRefreshBox(
@@ -313,7 +339,11 @@ private fun RecordListContent(
                             text = bookTitle,
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(vertical = 4.dp),
+                            // 헤더 탭 → 책 상세 (bookId로 서재에서 조회)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onBookHeaderClick(bookRecords.first().bookId) }
+                                .padding(vertical = 4.dp),
                         )
                     }
                     items(bookRecords, key = { it.id }) { record ->
@@ -463,6 +493,7 @@ private fun SessionsListContent(
     contentTopPadding: Dp,
     contentBottomPadding: Dp,
     onRefresh: () -> Unit,
+    onBookHeaderClick: (Long) -> Unit,
 ) {
     PullToRefreshBox(
         // 초기 로딩(중앙 스피너 담당)에는 새로고침 인디케이터를 겹쳐 돌리지 않는다
@@ -509,7 +540,11 @@ private fun SessionsListContent(
                             text = bookTitle,
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(vertical = 4.dp),
+                            // 헤더 탭 → 책 상세 (userBookId 단건 조회)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onBookHeaderClick(sessions.first().userBookId) }
+                                .padding(vertical = 4.dp),
                         )
                     }
                     items(sessions, key = { it.id }) { session ->

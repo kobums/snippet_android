@@ -77,6 +77,7 @@ fun ReadingCalendarScreen(
     initialYear: Int = LocalDate.now().year,
     initialMonth: Int = LocalDate.now().monthValue,
     onBack: () -> Unit = {},
+    onNavigateToBookDetail: (UserBookDto) -> Unit = {},
 ) {
     val context = LocalContext.current
     val vm: DashboardViewModel = viewModel(
@@ -191,6 +192,7 @@ fun ReadingCalendarScreen(
                         year = state.selectedYear,
                         month = state.selectedMonth,
                         completedBooks = completedBooks,
+                        onBookClick = onNavigateToBookDetail,
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                 }
@@ -218,6 +220,7 @@ fun ReadingCalendarScreen(
                     items(completedBooks) { book ->
                         CompletedBookRow(
                             book = book,
+                            onClick = { onNavigateToBookDetail(book) },
                             modifier = Modifier.padding(horizontal = 16.dp),
                         )
                     }
@@ -234,6 +237,7 @@ private fun CalendarGrid(
     year: Int,
     month: Int,
     completedBooks: List<UserBookDto>,
+    onBookClick: (UserBookDto) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val firstDay = LocalDate.of(year, month, 1)
@@ -252,7 +256,16 @@ private fun CalendarGrid(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     books.forEach { book ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            // 책 행 탭 → 다이얼로그 닫고 책 상세로 이동
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    dialogBooks = null
+                                    onBookClick(book)
+                                },
+                        ) {
                             if (book.coverUrl.isNotBlank()) {
                                 AsyncImage(
                                     model = book.coverUrl,
@@ -346,9 +359,11 @@ private fun CalendarGrid(
 @Composable
 private fun CompletedBookRow(
     book: UserBookDto,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),

@@ -13,7 +13,7 @@ interface SuggestionApi {
     @POST("suggestions")
     suspend fun add(@Body body: SuggestionAddRequest): SuggestionDto
 
-    /** 내 건의 목록 (앱 미사용, 백엔드 존재) */
+    /** 내 건의 목록 — 관리자 답변(answer/answerDate) 포함 */
     @GET("suggestions/mine")
     suspend fun getMine(): List<SuggestionDto>
 }

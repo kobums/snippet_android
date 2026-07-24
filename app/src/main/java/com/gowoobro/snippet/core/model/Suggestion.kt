@@ -32,4 +32,8 @@ data class SuggestionDto(
     val status: String = "",
     /** ISO LocalDateTime 문자열 */
     val createDate: String = "",
+    /** 관리자 답변 (미답변 시 null) */
+    val answer: String? = null,
+    /** 답변일 — ISO LocalDateTime 문자열 (미답변 시 null) */
+    val answerDate: String? = null,
 )

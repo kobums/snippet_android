@@ -51,6 +51,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gowoobro.snippet.core.di.appContainer
 import com.gowoobro.snippet.core.model.SuggestionCategory
+import com.gowoobro.snippet.core.model.SuggestionDto
+import com.gowoobro.snippet.core.util.DateFormats
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -68,6 +71,11 @@ fun SuggestionScreen(
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
     var contentError by remember { mutableStateOf<String?>(null) }
+
+    // 화면 진입 시 내 건의 내역 로드
+    LaunchedEffect(Unit) {
+        vm.loadMySuggestions()
+    }
 
     // 성공 처리
     LaunchedEffect(uiState.isSuccess) {
@@ -268,10 +276,135 @@ fun SuggestionScreen(
                 Text("제안 보내기")
             }
 
+            // 내 건의 내역 — 빈 목록이면 섹션 자체를 숨긴다
+            if (uiState.mySuggestions.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "내 건의 내역",
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                uiState.mySuggestions.forEach { suggestion ->
+                    SuggestionHistoryItem(suggestion = suggestion)
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
+
+/** 내 건의 내역 항목 카드 — 카테고리/상태/제목/작성일 + (있다면) 관리자 답변 블록 */
+@Composable
+private fun SuggestionHistoryItem(suggestion: SuggestionDto) {
+    val categoryLabel = SuggestionCategory.entries
+        .firstOrNull { it.wire == suggestion.category }
+        ?.label
+        ?: suggestion.category
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = categoryLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                SuggestionStatusBadge(status = suggestion.status)
+            }
+
+            Text(
+                text = suggestion.title
+                    ?.takeIf { it.isNotBlank() }
+                    ?: suggestion.content.lineSequence().firstOrNull().orEmpty(),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+
+            Text(
+                text = formatSuggestionDate(suggestion.createDate),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            // 관리자 답변 블록
+            suggestion.answer?.takeIf { it.isNotBlank() }?.let { answer ->
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = "답변",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = answer,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        suggestion.answerDate?.let { date ->
+                            Text(
+                                text = formatSuggestionDate(date),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 상태 뱃지 — PENDING(대기중)/COMPLETED(답변완료), M3 tonal 스타일 */
+@Composable
+private fun SuggestionStatusBadge(status: String) {
+    val (label, container, content) = when (status) {
+        "COMPLETED" -> Triple(
+            "답변완료",
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+        else -> Triple(
+            "대기중",
+            MaterialTheme.colorScheme.secondaryContainer,
+            MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+    }
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = container,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = content,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+    }
+}
+
+/** ISO LocalDateTime → "yyyy.MM.dd" (파싱 실패 시 앞 10자 폴백) */
+private fun formatSuggestionDate(iso: String): String =
+    DateFormats.parseDateTime(iso)
+        ?.format(DateTimeFormatter.ofPattern("yyyy.MM.dd"))
+        ?: iso.take(10).replace("-", ".")
 
 /**
  * 카드형 입력 필드 — 테두리 없는 filled 스타일 + 라운드 12.

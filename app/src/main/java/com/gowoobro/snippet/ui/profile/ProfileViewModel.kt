@@ -11,6 +11,7 @@ import com.gowoobro.snippet.core.model.AppThemeMode
 import com.gowoobro.snippet.core.model.OcrEnginePreference
 import com.gowoobro.snippet.core.model.SuggestionAddRequest
 import com.gowoobro.snippet.core.model.SuggestionCategory
+import com.gowoobro.snippet.core.model.SuggestionDto
 import com.gowoobro.snippet.core.model.UserProfile
 import com.gowoobro.snippet.core.network.AppResult
 import com.gowoobro.snippet.core.network.api.SuggestionApi
@@ -28,6 +29,9 @@ data class SuggestionUiState(
     val isLoading: Boolean = false,
     val isSuccess: Boolean = false,
     val errorMessage: String? = null,
+    /** 내 건의 내역 (GET /suggestions/mine) */
+    val mySuggestions: List<SuggestionDto> = emptyList(),
+    val isListLoading: Boolean = false,
 )
 
 data class ProfileUiState(
@@ -105,11 +109,29 @@ class ProfileViewModel(
             when (val result = safeApiCall { suggestionApi.add(request) }) {
                 is AppResult.Success -> {
                     _suggestionUiState.update { it.copy(isLoading = false, isSuccess = true) }
+                    loadMySuggestions()
                 }
                 is AppResult.Failure -> {
                     _suggestionUiState.update {
                         it.copy(isLoading = false, errorMessage = result.error.message)
                     }
+                }
+            }
+        }
+    }
+
+    /** 내 건의 내역 로드 — 실패해도 화면을 막지 않는다 (섹션만 비움) */
+    fun loadMySuggestions() {
+        viewModelScope.launch {
+            _suggestionUiState.update { it.copy(isListLoading = true) }
+            when (val result = safeApiCall { suggestionApi.getMine() }) {
+                is AppResult.Success -> {
+                    _suggestionUiState.update {
+                        it.copy(isListLoading = false, mySuggestions = result.data)
+                    }
+                }
+                is AppResult.Failure -> {
+                    _suggestionUiState.update { it.copy(isListLoading = false) }
                 }
             }
         }

@@ -34,6 +34,7 @@ import com.gowoobro.snippet.core.data.AuthState
 import com.gowoobro.snippet.core.di.appContainer
 import com.gowoobro.snippet.core.model.BookType
 import com.gowoobro.snippet.core.model.RecordType
+import com.gowoobro.snippet.core.model.SuggestionDto
 import com.gowoobro.snippet.core.model.UserBookDto
 import com.gowoobro.snippet.core.network.getOrDefault
 import com.gowoobro.snippet.core.network.safeApiCall
@@ -48,7 +49,9 @@ import com.gowoobro.snippet.ui.library.BookDetailScreen
 import com.gowoobro.snippet.ui.library.BookSearchScreen
 import com.gowoobro.snippet.ui.library.LibraryTabScreen
 import com.gowoobro.snippet.ui.library.PopularBooksScreen
+import com.gowoobro.snippet.ui.profile.AddSuggestionScreen
 import com.gowoobro.snippet.ui.profile.ProfileScreen
+import com.gowoobro.snippet.ui.profile.SuggestionDetailScreen
 import com.gowoobro.snippet.ui.profile.SuggestionScreen
 import com.gowoobro.snippet.reading.ReadingTimerService
 import com.gowoobro.snippet.reading.TimerState
@@ -65,6 +68,7 @@ import com.gowoobro.snippet.ui.snippet.SnippetTabScreen
  */
 object NavHolder {
     var pendingBook: UserBookDto? = null
+    var pendingSuggestion: SuggestionDto? = null
 }
 
 /**
@@ -252,6 +256,36 @@ private fun MainShell() {
                 // 하단(NavigationBar 높이)만 보정한다
                 Box(Modifier.fillMaxSize().padding(bottom = innerPadding.calculateBottomPadding())) {
                     SuggestionScreen(
+                        onBack = { navController.popBackStack() },
+                        onNavigateToAdd = { navController.navigate("addSuggestion") },
+                        onNavigateToDetail = { suggestion ->
+                            NavHolder.pendingSuggestion = suggestion
+                            navController.navigate("suggestionDetail")
+                        },
+                    )
+                }
+            }
+            composable("suggestionDetail") {
+                val suggestion = NavHolder.pendingSuggestion
+                if (suggestion != null) {
+                    // 화면 자체 Scaffold(TopAppBar)가 상태바 인셋을 처리하므로 상단 이중 여백 방지 —
+                    // 하단(NavigationBar 높이)만 보정한다
+                    Box(Modifier.fillMaxSize().padding(bottom = innerPadding.calculateBottomPadding())) {
+                        SuggestionDetailScreen(
+                            suggestion = suggestion,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                } else {
+                    // 전달된 건의가 없으면(프로세스 재생성 등) 목록으로 복귀
+                    LaunchedEffect(Unit) { navController.popBackStack() }
+                }
+            }
+            composable("addSuggestion") {
+                // 화면 자체 Scaffold(TopAppBar)가 상태바 인셋을 처리하므로 상단 이중 여백 방지 —
+                // 하단(NavigationBar 높이)만 보정한다
+                Box(Modifier.fillMaxSize().padding(bottom = innerPadding.calculateBottomPadding())) {
+                    AddSuggestionScreen(
                         onBack = { navController.popBackStack() },
                         onSuccess = { navController.popBackStack() },
                     )

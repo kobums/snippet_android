@@ -88,6 +88,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // 앱 시작 + 백그라운드 복귀 시마다 버전 정책 확인 (게이트 내부에서 중복 요청 방지)
+        appContainer.appVersionGate.refresh()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         // singleTop이므로 앱이 떠 있는 상태에서 푸시 탭 시 여기로 들어온다.

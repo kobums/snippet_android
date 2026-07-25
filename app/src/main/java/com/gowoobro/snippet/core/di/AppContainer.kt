@@ -4,13 +4,16 @@ import android.content.Context
 import android.os.Build
 import com.gowoobro.snippet.BuildConfig
 import com.gowoobro.snippet.SnippetApplication
+import com.gowoobro.snippet.core.data.AppVersionGate
 import com.gowoobro.snippet.core.data.AuthManager
 import com.gowoobro.snippet.core.datastore.ActiveSessionStore
 import com.gowoobro.snippet.core.datastore.SettingsStore
 import com.gowoobro.snippet.core.datastore.TokenStore
 import com.gowoobro.snippet.core.datastore.snippetDataStore
+import com.gowoobro.snippet.core.network.AppVersionInterceptor
 import com.gowoobro.snippet.core.network.AuthInterceptor
 import com.gowoobro.snippet.core.network.TokenAuthenticator
+import com.gowoobro.snippet.core.network.api.AppVersionApi
 import com.gowoobro.snippet.core.network.api.AuthApi
 import com.gowoobro.snippet.core.network.api.BookApi
 import com.gowoobro.snippet.core.network.api.OcrApi
@@ -102,6 +105,7 @@ class AppContainer(context: Context) {
 
     private val baseOkHttpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
+        .addInterceptor(AppVersionInterceptor())
         .apply {
             if (BuildConfig.DEBUG) {
                 addInterceptor(
@@ -164,6 +168,9 @@ class AppContainer(context: Context) {
     val ocrApi: OcrApi = retrofit.create()
     val userApi: UserApi = retrofit.create()
 
+    /** 버전 정책 조회는 인증이 필요 없고 401 refresh에 얽힐 이유도 없으므로 plain 클라이언트를 쓴다 */
+    val appVersionApi: AppVersionApi = plainRetrofit.create()
+
     // ----- 세션 -----
 
     val authManager = AuthManager(
@@ -172,6 +179,13 @@ class AppContainer(context: Context) {
         settingsStore = settingsStore,
         externalScope = applicationScope,
         sessionExpiredEvents = sessionExpiredEvents,
+    )
+
+    /** 강제 업데이트 게이트 — MainActivity가 시작/포그라운드 복귀 시 refresh 호출 */
+    val appVersionGate = AppVersionGate(
+        api = appVersionApi,
+        settingsStore = settingsStore,
+        externalScope = applicationScope,
     )
 
     /** FCM 토큰 관리 — 로그인 성공 후 [FcmTokenManager.registerCurrentToken] 호출 */

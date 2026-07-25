@@ -65,10 +65,21 @@ class SettingsStore(
         dataStore.edit { it[KEY_OCR_ENGINE] = pref.value }
     }
 
+    // ----- 권장 업데이트 안내 스킵 -----
+
+    /** "나중에"를 누른 최신 버전. 같은 버전에 대해서는 다시 안내하지 않는다. */
+    suspend fun skippedUpdateVersion(): String? =
+        dataStore.data.first()[KEY_SKIPPED_UPDATE_VERSION]
+
+    suspend fun setSkippedUpdateVersion(version: String) {
+        dataStore.edit { it[KEY_SKIPPED_UPDATE_VERSION] = version }
+    }
+
     companion object {
         /** Flutter SharedPreferences와 동일 키 */
         private val KEY_CURRENT_USER = stringPreferencesKey("current_user")
         private val KEY_THEME_MODE = stringPreferencesKey("themeMode")
         private val KEY_OCR_ENGINE = stringPreferencesKey("ocrEngine")
+        private val KEY_SKIPPED_UPDATE_VERSION = stringPreferencesKey("skippedUpdateVersion")
     }
 }

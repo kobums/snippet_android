@@ -61,6 +61,8 @@ import com.gowoobro.snippet.ui.reading.SessionCompleteScreen
 import com.gowoobro.snippet.ui.records.AddRecordScreen
 import com.gowoobro.snippet.ui.records.RecordsTabScreen
 import com.gowoobro.snippet.ui.snippet.SnippetTabScreen
+import com.gowoobro.snippet.ui.update.ForceUpdateScreen
+import com.gowoobro.snippet.ui.update.SoftUpdateDialog
 
 /**
  * 화면 간 UserBookDto 전달을 위한 간단한 in-memory 홀더.
@@ -81,10 +83,24 @@ fun SnippetApp() {
     val authManager = context.appContainer.authManager
     val authState by authManager.authState.collectAsStateWithLifecycle()
 
+    val versionGate = context.appContainer.appVersionGate
+    val policy by versionGate.policy.collectAsStateWithLifecycle()
+    val showSoftPrompt by versionGate.showSoftPrompt.collectAsStateWithLifecycle()
+
+    // 강제 업데이트는 로그인 여부와 무관하게 앱 전체를 덮는다.
+    if (policy.updateRequired) {
+        ForceUpdateScreen(policy = policy)
+        return
+    }
+
     when (authState) {
         is AuthState.Unknown -> SplashScreen()
         is AuthState.LoggedOut -> AuthFlow()
         is AuthState.LoggedIn -> MainShell()
+    }
+
+    if (showSoftPrompt) {
+        SoftUpdateDialog(policy = policy, onDismiss = { versionGate.skipSoftPrompt() })
     }
 }
 

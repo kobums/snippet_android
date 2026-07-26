@@ -25,6 +25,7 @@ import com.gowoobro.snippet.core.network.api.SuggestionApi
 import com.gowoobro.snippet.core.network.api.UserApi
 import com.gowoobro.snippet.core.network.api.UserBookApi
 import com.gowoobro.snippet.core.network.api.UserBookStatsApi
+import com.gowoobro.snippet.core.migration.FlutterTokenMigrator
 import com.gowoobro.snippet.fcm.FcmTokenManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -172,6 +173,15 @@ class AppContainer(context: Context) {
     val appVersionApi: AppVersionApi = plainRetrofit.create()
 
     // ----- 세션 -----
+
+    /** 레거시 Flutter 세션 이관 — 앱 시작 시 checkAuth 이전에 1회 호출 */
+    val flutterTokenMigrator = FlutterTokenMigrator(
+        context = context.applicationContext,
+        dataStore = dataStore,
+        tokenStore = tokenStore,
+        settingsStore = settingsStore,
+        authApi = authApi,
+    )
 
     val authManager = AuthManager(
         authApi = authApi,

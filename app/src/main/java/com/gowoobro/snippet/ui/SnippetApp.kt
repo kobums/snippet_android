@@ -53,7 +53,7 @@ import com.gowoobro.snippet.ui.profile.AddSuggestionScreen
 import com.gowoobro.snippet.ui.profile.ProfileScreen
 import com.gowoobro.snippet.ui.profile.SuggestionDetailScreen
 import com.gowoobro.snippet.ui.profile.SuggestionScreen
-import com.gowoobro.snippet.reading.ReadingTimerService
+import com.gowoobro.snippet.reading.ReadingTimerController
 import com.gowoobro.snippet.reading.TimerState
 import com.gowoobro.snippet.ui.reading.ReadingTimerScreen
 import java.time.LocalDate
@@ -130,7 +130,7 @@ private fun MainShell() {
 
     // 진행 중이던 독서 세션 복구 제안 — 앱 재실행 시 영속 스냅샷이 있고 타이머가 Idle이면 "이어 읽기" 안내
     LaunchedEffect(Unit) {
-        if (ReadingTimerService.state.value !is TimerState.Idle) return@LaunchedEffect
+        if (ReadingTimerController.state.value !is TimerState.Idle) return@LaunchedEffect
         val snap = context.appContainer.activeSessionStore.peek() ?: return@LaunchedEffect
         val result = snackbarHostState.showSnackbar(
             message = "이전 독서 세션이 있습니다. 이어서 읽을까요?",

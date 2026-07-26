@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -184,9 +185,21 @@ fun ReadingTimerScreen(
 
                 Spacer(Modifier.weight(1f))
 
-                // 경과 시간 (대형)
+                // 경과 시간 (대형).
+                // Running은 wall-clock에서 매초 파생 계산한다 — 화면이 보이는 동안에만 도는
+                // 틱이라 백그라운드에서 앱이 깨어날 일이 없고, 값은 항상 epoch 기준이라
+                // 틱을 몇 번 건너뛰어도 표시가 어긋나지 않는다.
+                var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+                LaunchedEffect(timerState) {
+                    if (timerState !is TimerState.Running) return@LaunchedEffect
+                    while (true) {
+                        nowMillis = System.currentTimeMillis()
+                        delay(1000)
+                    }
+                }
                 val elapsed = when (val s = timerState) {
-                    is TimerState.Running -> s.elapsedSeconds
+                    is TimerState.Running ->
+                        (s.baseElapsed + (nowMillis / 1000L - s.startEpoch)).coerceAtLeast(0L)
                     is TimerState.Paused -> s.elapsedSeconds
                     else -> 0L
                 }

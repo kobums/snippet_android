@@ -18,6 +18,7 @@ import com.gowoobro.snippet.core.network.AppResult
 import com.gowoobro.snippet.core.network.getOrDefault
 import com.gowoobro.snippet.core.network.getOrNull
 import com.gowoobro.snippet.core.network.safeApiCall
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -154,10 +155,19 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    // 월/연도 이동 연타 시 늦게 도착한 이전 요청 응답이 현재 화면을 덮어쓰지 않도록
+    // 직전 Job을 취소한다 (safeApiCall이 CancellationException을 재던져야 유효).
+    private var monthJob: Job? = null
+    private var statsYearJob: Job? = null
+
     /** 선택 월 변경 → 해당 월 책 재조회 */
     fun changeMonth(year: Int, month: Int) {
         _uiState.update { it.copy(selectedYear = year, selectedMonth = month) }
-        viewModelScope.launch {
+        // 연도가 바뀌면 연도 스코프 통계(월별 차트/카테고리/인사이트)도 함께 갱신해야 한다.
+        // (그대로 두면 대시보드의 월별 완독 차트·카테고리 도넛이 이전 연도 데이터로 남는다)
+        if (year != _uiState.value.statsYear) changeStatsYear(year)
+        monthJob?.cancel()
+        monthJob = viewModelScope.launch {
             val result = safeApiCall { container.userBookApi.getMonthly(year, month) }
             _uiState.update { it.copy(monthlyBooks = result.getOrDefault(emptyList())) }
         }
@@ -182,7 +192,8 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
     fun changeStatsYear(year: Int) {
         if (year == _uiState.value.statsYear) return
         _uiState.update { it.copy(statsYear = year) }
-        viewModelScope.launch {
+        statsYearJob?.cancel()
+        statsYearJob = viewModelScope.launch {
             val monthlyDeferred = async {
                 safeApiCall { container.userBookStatsApi.getMonthly(year) }
                     .getOrDefault(emptyList())

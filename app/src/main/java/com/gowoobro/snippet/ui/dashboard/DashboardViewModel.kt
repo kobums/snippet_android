@@ -128,13 +128,16 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
                     .getOrDefault(emptyList())
             }
             val libraryDeferred = async {
-                safeApiCall { container.userBookApi.getPaged(0, 20) }
+                safeApiCall { container.userBookApi.getPaged(0, LIBRARY_PAGE_SIZE) }
                     .getOrDefault(emptyList())
             }
             val recommendDeferred = async {
                 safeApiCall { container.bookApi.getRecommend() }
                     .getOrDefault(emptyList())
             }
+
+            val libraryBooks = libraryDeferred.await()
+            libraryFullyLoaded = libraryBooks.size < LIBRARY_PAGE_SIZE
 
             _uiState.update {
                 it.copy(
@@ -148,7 +151,7 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
                     categoryStats = categoryStatsDeferred.await(),
                     insights = insightsDeferred.await(),
                     progressBooks = progressDeferred.await(),
-                    libraryBooks = libraryDeferred.await(),
+                    libraryBooks = libraryBooks,
                     recommendedBooks = recommendDeferred.await(),
                 )
             }
@@ -235,6 +238,40 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
 
     fun setLibraryQuery(query: String) {
         _uiState.update { it.copy(libraryQuery = query) }
+        ensureLibraryFullyLoadedForSearch(query)
+    }
+
+    // ---- 서재 탭 검색용 전량 로드 ----
+
+    /** 서재 탭이 전량 로드됐는지 — 검색 필터는 전량 위에서만 정확하다. */
+    private var libraryFullyLoaded = false
+    private var libraryLoadAllJob: Job? = null
+
+    /**
+     * 검색어 입력 시 남은 페이지를 전부 로드한다.
+     * 첫 페이지에만 필터가 걸리면 뒤 페이지의 책이 "검색 결과 없음"으로 나오기 때문.
+     */
+    private fun ensureLibraryFullyLoadedForSearch(query: String) {
+        if (query.isBlank() || libraryFullyLoaded) return
+        if (libraryLoadAllJob?.isActive == true) return
+        libraryLoadAllJob = viewModelScope.launch {
+            var page = 1
+            while (true) {
+                // 에러 시 중단 — 다음 검색어 입력에서 재시도된다.
+                val books = safeApiCall { container.userBookApi.getPaged(page, LIBRARY_PAGE_SIZE) }
+                    .getOrNull() ?: return@launch
+                _uiState.update { state ->
+                    // 새로고침과 겹쳐도 중복 행이 생기지 않도록 id 기준 dedupe
+                    val known = state.libraryBooks.map { it.id }.toSet()
+                    state.copy(libraryBooks = state.libraryBooks + books.filter { it.id !in known })
+                }
+                if (books.size < LIBRARY_PAGE_SIZE) {
+                    libraryFullyLoaded = true
+                    return@launch
+                }
+                page++
+            }
+        }
     }
 
     fun refresh() = loadAll()
@@ -242,6 +279,8 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
     // ---- Factory ----
 
     companion object {
+        private const val LIBRARY_PAGE_SIZE = 20
+
         fun factory(container: AppContainer): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")

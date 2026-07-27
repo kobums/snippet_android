@@ -27,6 +27,8 @@ import com.gowoobro.snippet.core.network.api.UserBookApi
 import com.gowoobro.snippet.core.network.api.UserBookStatsApi
 import com.gowoobro.snippet.core.migration.FlutterTokenMigrator
 import com.gowoobro.snippet.fcm.FcmTokenManager
+import com.gowoobro.snippet.reading.ReadingTimerController
+import com.gowoobro.snippet.ui.widget.SnippetWidgetBridge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -189,6 +191,11 @@ class AppContainer(context: Context) {
         settingsStore = settingsStore,
         externalScope = applicationScope,
         sessionExpiredEvents = sessionExpiredEvents,
+        onClearUserData = {
+            // 진행 중 독서 세션(스냅샷·알림·타이머 상태)과 홈 위젯 스니펫 정리
+            ReadingTimerController.abandon(context.applicationContext)
+            SnippetWidgetBridge.clear(context.applicationContext)
+        },
     )
 
     /** 강제 업데이트 게이트 — MainActivity가 시작/포그라운드 복귀 시 refresh 호출 */

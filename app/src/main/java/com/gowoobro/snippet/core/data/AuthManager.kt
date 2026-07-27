@@ -42,6 +42,8 @@ class AuthManager(
     private val settingsStore: SettingsStore,
     externalScope: CoroutineScope,
     sessionExpiredEvents: SharedFlow<Unit>,
+    /** 로그아웃/탈퇴 시 인증 외 사용자 데이터 정리 훅 (독서 세션 스냅샷·알림·위젯 등) */
+    private val onClearUserData: suspend () -> Unit = {},
 ) {
     private val _authState = MutableStateFlow<AuthState>(AuthState.Unknown)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
@@ -129,5 +131,8 @@ class AuthManager(
     private suspend fun clearLocalAuthData() {
         tokenStore.clearTokens()
         settingsStore.clearUserProfile()
+        // 진행 중이던 독서 세션·홈 위젯 스니펫 등도 함께 정리해
+        // 다음 계정에 이전 사용자의 데이터가 남지 않게 한다.
+        onClearUserData()
     }
 }

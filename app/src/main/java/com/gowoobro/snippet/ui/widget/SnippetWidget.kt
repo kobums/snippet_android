@@ -98,6 +98,9 @@ class SnippetWidgetReceiver : GlanceAppWidgetReceiver() {
  * 설치된 위젯이 없으면 아무 일도 하지 않는다.
  */
 object SnippetWidgetBridge {
+    /** 로그아웃 등에서 위젯 표시를 기본 안내 문구로 되돌린다 (빈 텍스트 → 플레이스홀더 폴백). */
+    suspend fun clear(context: Context) = update(context, "", null)
+
     suspend fun update(context: Context, text: String, tag: String?) {
         val manager = GlanceAppWidgetManager(context)
         val ids = manager.getGlanceIds(SnippetWidget::class.java)

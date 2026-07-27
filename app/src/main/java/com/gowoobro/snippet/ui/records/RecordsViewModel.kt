@@ -11,6 +11,7 @@ import com.gowoobro.snippet.core.model.RecordType
 import com.gowoobro.snippet.core.model.RecordUpdateRequest
 import com.gowoobro.snippet.core.network.getOrDefault
 import com.gowoobro.snippet.core.network.safeApiCall
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -92,12 +93,17 @@ class RecordsViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    // 월 이동 연타 시 늦게 도착한 이전 달 응답이 현재 달 화면을 덮어쓰지 않도록
+    // 직전 Job을 취소한다 (safeApiCall이 CancellationException을 재던져야 유효).
+    private var recordsJob: Job? = null
+
     fun loadMonthlyRecords(
         year: Int = _uiState.value.selectedYear,
         month: Int = _uiState.value.selectedMonth,
         type: RecordType? = null,
     ) {
-        viewModelScope.launch {
+        recordsJob?.cancel()
+        recordsJob = viewModelScope.launch {
             _uiState.update {
                 it.copy(
                     isLoading = true,

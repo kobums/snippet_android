@@ -113,22 +113,35 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun loadMoreBooks() {
+    /**
+     * 다음 페이지 로드. [type]을 주면 해당 타입이 최소 1건 확보될 때까지 페이지를 계속 당긴다.
+     *
+     * API는 타입 무관 페이지를 내려주므로 한 페이지에 요청 탭의 타입이 0건일 수 있다.
+     * 그 경우 탭 리스트가 안 자라 스크롤 트리거(snapshotFlow)가 다시 발화하지 않고
+     * 무한 스크롤이 조기 종료된다.
+     */
+    fun loadMoreBooks(type: BookType? = null) {
         val state = _uiState.value
         if (state.isLoadingMore || !state.hasMore) return
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingMore = true) }
-            val nextPage = state.currentPage + 1
-            val books = safeApiCall { container.userBookApi.getPaged(nextPage, 20) }
-                .getOrDefault(emptyList())
-            _uiState.update {
-                it.copy(
-                    isLoadingMore = false,
-                    allBooks = it.allBooks + books,
-                    currentPage = nextPage,
-                    hasMore = books.size >= 20,
-                )
+            var page = state.currentPage
+            while (true) {
+                val nextPage = page + 1
+                val books = safeApiCall { container.userBookApi.getPaged(nextPage, 20) }
+                    .getOrDefault(emptyList())
+                page = nextPage
+                val hasMore = books.size >= 20
+                _uiState.update {
+                    it.copy(
+                        allBooks = it.allBooks + books,
+                        currentPage = nextPage,
+                        hasMore = hasMore,
+                    )
+                }
+                if (!hasMore || type == null || books.any { it.type == type }) break
             }
+            _uiState.update { it.copy(isLoadingMore = false) }
         }
     }
 

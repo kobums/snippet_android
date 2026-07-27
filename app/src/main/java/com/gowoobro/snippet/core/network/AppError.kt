@@ -6,6 +6,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import retrofit2.HttpException
 import java.io.IOException
+import kotlin.coroutines.cancellation.CancellationException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -102,6 +103,10 @@ fun <T> AppResult<T>.getOrDefault(default: T): T = getOrNull() ?: default
  */
 suspend fun <T> safeApiCall(block: suspend () -> T): AppResult<T> = try {
     AppResult.Success(block())
+} catch (e: CancellationException) {
+    // 코루틴 취소를 Failure로 삼키면 Job.cancel()이 무력화되고
+    // 취소된 요청의 스테일 응답이 상태에 반영된다 — 반드시 재던진다.
+    throw e
 } catch (e: Throwable) {
     AppResult.Failure(e.toAppError())
 }

@@ -35,10 +35,6 @@ data class LibraryUiState(
     val currentPage: Int = 0,
     val isLoadingMore: Boolean = false,
     val hasMore: Boolean = true,
-    // 탭별 검색어
-    val haveQuery: String = "",
-    val borrowQuery: String = "",
-    val wishQuery: String = "",
     // 책 검색 화면
     val searchQuery: String = "",
     val searchResults: List<BookSearchDto> = emptyList(),
@@ -60,22 +56,13 @@ data class LibraryUiState(
 )
 
 val LibraryUiState.haveBooks: List<UserBookDto>
-    get() = allBooks.filter { it.type == BookType.HAVE }.let { books ->
-        if (haveQuery.isBlank()) books
-        else books.filter { b -> b.title.contains(haveQuery, ignoreCase = true) || b.author.contains(haveQuery, ignoreCase = true) }
-    }
+    get() = allBooks.filter { it.type == BookType.HAVE }
 
 val LibraryUiState.borrowBooks: List<UserBookDto>
-    get() = allBooks.filter { it.type == BookType.BORROW }.let { books ->
-        if (borrowQuery.isBlank()) books
-        else books.filter { b -> b.title.contains(borrowQuery, ignoreCase = true) || b.author.contains(borrowQuery, ignoreCase = true) }
-    }
+    get() = allBooks.filter { it.type == BookType.BORROW }
 
 val LibraryUiState.wishBooks: List<UserBookDto>
-    get() = allBooks.filter { it.type == BookType.WISH }.let { books ->
-        if (wishQuery.isBlank()) books
-        else books.filter { b -> b.title.contains(wishQuery, ignoreCase = true) || b.author.contains(wishQuery, ignoreCase = true) }
-    }
+    get() = allBooks.filter { it.type == BookType.WISH }
 
 /**
  * 서재 탭 ViewModel — 보유/대출/위시 목록, 책 검색(알라딘), 인기 도서,
@@ -146,12 +133,6 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun refresh() = loadLibrary()
-
-    // ─── 탭 검색어 ────────────────────────────────────────────────
-
-    fun setHaveQuery(q: String) = _uiState.update { it.copy(haveQuery = q) }
-    fun setBorrowQuery(q: String) = _uiState.update { it.copy(borrowQuery = q) }
-    fun setWishQuery(q: String) = _uiState.update { it.copy(wishQuery = q) }
 
     // ─── 책 추가 ──────────────────────────────────────────────────
 

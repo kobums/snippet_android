@@ -89,6 +89,15 @@ class TokenStore(
         }
     }
 
+    /** 로그인/가입 응답에 refresh 토큰이 없는 케이스: 이전 계정 것이 남지 않게 삭제 */
+    suspend fun clearRefreshToken() {
+        dataStore.edit { it.remove(KEY_REFRESH_TOKEN) }
+        synchronized(this) {
+            cachedRefreshToken = null
+            cacheInitialized = true
+        }
+    }
+
     suspend fun clearTokens() {
         dataStore.edit { prefs ->
             prefs.remove(KEY_ACCESS_TOKEN)

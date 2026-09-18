@@ -15,6 +15,7 @@ import com.gowoobro.snippet.core.model.UserBookDto
 import com.gowoobro.snippet.core.model.UserBookUpdateRequest
 import com.gowoobro.snippet.core.network.AppResult
 import com.gowoobro.snippet.core.network.getOrDefault
+import com.gowoobro.snippet.core.network.getOrNull
 import com.gowoobro.snippet.core.network.safeApiCall
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -51,6 +52,10 @@ data class LibraryUiState(
     val detailRecords: List<RecordDto> = emptyList(),
     val detailSessions: List<ReadingSessionDto> = emptyList(),
     val isLoadingDetail: Boolean = false,
+    // 책 상세 - 현재 보고 있는 책의 최신 상태 (서버 응답 기준).
+    // 예전엔 상세 화면이 allBooks(첫 페이지 20권)에서 책을 찾고 없으면 진입 시 스냅샷을 써서,
+    // 20권 밖의 책은 상태를 바꿔도 화면에 반영되지 않았다.
+    val detailBook: UserBookDto? = null,
     // 스낵바 메시지
     val snackbarMessage: String? = null,
 )
@@ -80,6 +85,27 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
 
     init {
         loadLibrary()
+        // 다른 화면(상세/서재 탭)에서 바뀐 책을 이 ViewModel의 목록에도 반영
+        viewModelScope.launch {
+            container.userBookChangedEvents.collect { applyBookLocally(it) }
+        }
+    }
+
+    /** 목록/상세 상태에 서버 응답 책을 반영 (자기 자신이 보낸 이벤트를 다시 받아도 결과는 같다). */
+    private fun applyBookLocally(book: UserBookDto) {
+        _uiState.update { state ->
+            state.copy(
+                allBooks = state.allBooks.map { if (it.id == book.id) book else it },
+                detailBook = if (state.detailBook?.id == book.id) book else state.detailBook,
+            )
+        }
+    }
+
+    /** PATCH 성공 공통 처리: 로컬 반영 + 다른 화면 전파 + 성공 스낵바. */
+    private fun onBookUpdated(book: UserBookDto, message: String?) {
+        applyBookLocally(book)
+        container.notifyUserBookChanged(book)
+        if (message != null) _uiState.update { it.copy(snackbarMessage = message) }
     }
 
     // ─── 서재 목록 ───────────────────────────────────────────────
@@ -209,16 +235,22 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
 
     // ─── 책 상태 변경 ─────────────────────────────────────────────
 
-    fun updateBookStatus(id: Long, status: BookStatus) {
+    fun updateBookStatus(id: Long, status: BookStatus, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             val result = safeApiCall {
                 container.userBookApi.update(id, UserBookUpdateRequest(status = status))
             }
             when (result) {
                 is AppResult.Success -> {
-                    _uiState.update { state ->
-                        state.copy(allBooks = state.allBooks.map { if (it.id == id) result.data else it })
+                    val message = when (status) {
+                        BookStatus.COMPLETED -> "완독 처리했어요"
+                        BookStatus.DROPPED -> "중단 처리했어요"
+                        BookStatus.READING -> "읽기를 시작했어요"
+                        BookStatus.WAITING -> "읽을 예정으로 옮겼어요"
+                        BookStatus.NONE -> null
                     }
+                    onBookUpdated(result.data, message)
+                    onSuccess()
                 }
                 is AppResult.Failure -> _uiState.update { it.copy(snackbarMessage = result.error.message) }
             }
@@ -232,9 +264,13 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
             }
             when (result) {
                 is AppResult.Success -> {
-                    _uiState.update { state ->
-                        state.copy(allBooks = state.allBooks.map { if (it.id == id) result.data else it })
+                    val message = when (type) {
+                        BookType.WISH -> "위시리스트로 옮겼어요"
+                        BookType.HAVE -> "소장 도서로 바꿨어요"
+                        BookType.BORROW -> "대출 중으로 바꿨어요"
+                        BookType.RETURN -> "반납 처리했어요"
                     }
+                    onBookUpdated(result.data, message)
                 }
                 is AppResult.Failure -> _uiState.update { it.copy(snackbarMessage = result.error.message) }
             }
@@ -247,11 +283,7 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
                 container.userBookApi.update(id, UserBookUpdateRequest(readPage = readPage))
             }
             when (result) {
-                is AppResult.Success -> {
-                    _uiState.update { state ->
-                        state.copy(allBooks = state.allBooks.map { if (it.id == id) result.data else it })
-                    }
-                }
+                is AppResult.Success -> onBookUpdated(result.data, "${readPage}페이지까지 저장했어요")
                 is AppResult.Failure -> _uiState.update { it.copy(snackbarMessage = result.error.message) }
             }
         }
@@ -268,17 +300,7 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
                 container.userBookApi.update(id, UserBookUpdateRequest(returnDate = base.plusDays(7).toString()))
             }
             when (result) {
-                is AppResult.Success -> {
-                    _uiState.update { state ->
-                        // 상세 화면이 allBooks에서 책을 찾으므로, 목록에 없으면 추가해 변경이 반영되게 한다
-                        val updated = if (state.allBooks.any { it.id == id }) {
-                            state.allBooks.map { if (it.id == id) result.data else it }
-                        } else {
-                            state.allBooks + result.data
-                        }
-                        state.copy(allBooks = updated)
-                    }
-                }
+                is AppResult.Success -> onBookUpdated(result.data, "반납 기한을 1주일 연장했어요")
                 is AppResult.Failure -> _uiState.update { it.copy(snackbarMessage = result.error.message) }
             }
         }
@@ -290,11 +312,7 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
                 container.userBookApi.update(id, UserBookUpdateRequest(rating = rating))
             }
             when (result) {
-                is AppResult.Success -> {
-                    _uiState.update { state ->
-                        state.copy(allBooks = state.allBooks.map { if (it.id == id) result.data else it })
-                    }
-                }
+                is AppResult.Success -> onBookUpdated(result.data, "별점을 저장했어요")
                 is AppResult.Failure -> _uiState.update { it.copy(snackbarMessage = result.error.message) }
             }
         }
@@ -384,7 +402,20 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
 
     // ─── 책 상세 - 기록/세션 ─────────────────────────────────────
 
-    fun loadBookDetail(bookId: Long, userBookId: Long) {
+    fun loadBookDetail(userBook: UserBookDto) {
+        val bookId = userBook.bookId
+        val userBookId = userBook.id
+        // 진입 즉시 넘겨받은 스냅샷을 보여주고, 서버에서 최신 상태를 받아 교체한다
+        // (타이머 세션 종료 등으로 서버값이 바뀌었을 수 있다).
+        if (_uiState.value.detailBook?.id != userBookId) {
+            _uiState.update { it.copy(detailBook = userBook) }
+        }
+        viewModelScope.launch {
+            safeApiCall { container.userBookApi.getById(userBookId) }.getOrNull()?.let { fresh ->
+                applyBookLocally(fresh)
+                _uiState.update { it.copy(detailBook = fresh) }
+            }
+        }
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingDetail = true) }
             val recordsDeferred = viewModelScope.launch {

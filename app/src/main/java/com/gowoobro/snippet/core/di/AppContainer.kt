@@ -26,6 +26,7 @@ import com.gowoobro.snippet.core.network.api.UserApi
 import com.gowoobro.snippet.core.network.api.UserBookApi
 import com.gowoobro.snippet.core.network.api.UserBookStatsApi
 import com.gowoobro.snippet.core.migration.FlutterTokenMigrator
+import com.gowoobro.snippet.core.model.UserBookDto
 import com.gowoobro.snippet.fcm.FcmTokenManager
 import com.gowoobro.snippet.reading.ReadingTimerController
 import com.gowoobro.snippet.ui.widget.SnippetWidgetBridge
@@ -101,6 +102,18 @@ class AppContainer(context: Context) {
 
     private val _sessionExpiredEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val sessionExpiredEvents: SharedFlow<Unit> = _sessionExpiredEvents.asSharedFlow()
+
+    // ----- 서재 책 변경 이벤트 -----
+    // 책 상세/서재 탭/대시보드가 각자 ViewModel을 들고 있어서, 한 화면에서 상태·진도를 바꿔도
+    // 다른 화면 목록은 당겨서 새로고침하기 전까지 옛값이었다. PATCH 성공 시 서버 응답을 여기로 흘려
+    // 구독 중인 ViewModel이 자기 목록을 갱신한다.
+
+    private val _userBookChangedEvents = MutableSharedFlow<UserBookDto>(extraBufferCapacity = 16)
+    val userBookChangedEvents: SharedFlow<UserBookDto> = _userBookChangedEvents.asSharedFlow()
+
+    fun notifyUserBookChanged(book: UserBookDto) {
+        _userBookChangedEvents.tryEmit(book)
+    }
 
     // ----- 네트워킹 -----
 

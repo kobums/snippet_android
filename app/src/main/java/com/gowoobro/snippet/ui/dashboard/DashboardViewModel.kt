@@ -79,6 +79,69 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
 
     init {
         loadAll()
+        // 상세/서재 탭에서 책 상태·진도가 바뀌면 대시보드 목록·통계도 조용히 갱신
+        viewModelScope.launch {
+            container.userBookChangedEvents.collect { onUserBookChanged(it) }
+        }
+    }
+
+    private var bookChangeRefreshJob: Job? = null
+
+    /**
+     * 다른 화면에서 책이 바뀌었을 때: 서재 목록은 서버 응답으로 즉시 교체하고,
+     * 진행/월별 목록과 완독 통계는 멤버십이 바뀔 수 있어 다시 조회한다.
+     * isLoading을 켜지 않아 복귀 시 스켈레톤이 번쩍이지 않는다.
+     * (상태 변경 → 별점 저장처럼 연달아 오면 직전 조회를 취소하고 마지막 것만 반영)
+     */
+    private fun onUserBookChanged(book: UserBookDto) {
+        _uiState.update { state ->
+            state.copy(libraryBooks = state.libraryBooks.map { if (it.id == book.id) book else it })
+        }
+        bookChangeRefreshJob?.cancel()
+        bookChangeRefreshJob = viewModelScope.launch {
+            val state = _uiState.value
+            val now = LocalDate.now()
+            val monthlyBooksDeferred = async {
+                safeApiCall { container.userBookApi.getMonthly(state.selectedYear, state.selectedMonth) }.getOrNull()
+            }
+            val progressDeferred = async {
+                safeApiCall { container.userBookApi.getProgress() }.getOrNull()
+            }
+            val goalDeferred = async {
+                safeApiCall { container.readingGoalApi.get(now.year) }.getOrNull()
+            }
+            val monthlyStatsDeferred = async {
+                safeApiCall { container.userBookStatsApi.getMonthly(state.statsYear) }.getOrNull()
+            }
+            val yearlyStatsDeferred = async {
+                safeApiCall { container.userBookStatsApi.getYearly() }.getOrNull()
+            }
+            val categoryStatsDeferred = async {
+                safeApiCall { container.userBookStatsApi.getCategory(state.statsYear) }.getOrNull()
+            }
+            val insightsDeferred = async {
+                safeApiCall { container.userBookStatsApi.getInsights(state.statsYear) }.getOrNull()
+            }
+            // 실패한 항목은 기존 값을 유지한다 (빈 목록으로 덮어쓰지 않음)
+            val monthlyBooks = monthlyBooksDeferred.await()
+            val progress = progressDeferred.await()
+            val goal = goalDeferred.await()
+            val monthlyStats = monthlyStatsDeferred.await()
+            val yearlyStats = yearlyStatsDeferred.await()
+            val categoryStats = categoryStatsDeferred.await()
+            val insights = insightsDeferred.await()
+            _uiState.update {
+                it.copy(
+                    monthlyBooks = monthlyBooks ?: it.monthlyBooks,
+                    progressBooks = progress ?: it.progressBooks,
+                    readingGoal = goal ?: it.readingGoal,
+                    monthlyStats = monthlyStats ?: it.monthlyStats,
+                    yearlyStats = yearlyStats ?: it.yearlyStats,
+                    categoryStats = categoryStats ?: it.categoryStats,
+                    insights = insights ?: it.insights,
+                )
+            }
+        }
     }
 
     /** 전체 데이터 병렬 로드 */

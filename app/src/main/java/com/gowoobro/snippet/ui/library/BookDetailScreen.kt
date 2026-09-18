@@ -100,8 +100,8 @@ fun BookDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // 현재 책 (로컬 업데이트 반영)
-    val book = state.allBooks.find { it.id == userBook.id } ?: userBook
+    // 현재 책: 서버 응답으로 갱신되는 detailBook 우선 (첫 페이지 목록에 없는 책도 변경이 반영된다)
+    val book = state.detailBook?.takeIf { it.id == userBook.id } ?: userBook
 
     // 탭: 0=정보, 1=스니펫, 2=독서일기, 3=리뷰, 4=독서세션
     var selectedDetailTab by remember { mutableIntStateOf(0) }
@@ -113,7 +113,7 @@ fun BookDetailScreen(
 
     // 초기 데이터 로드 + 기록 추가 후(refreshSignal 변경) 재조회
     LaunchedEffect(userBook.id, refreshSignal) {
-        vm.loadBookDetail(userBook.bookId, userBook.id)
+        vm.loadBookDetail(userBook)
     }
 
     LaunchedEffect(state.snackbarMessage) {
@@ -255,9 +255,11 @@ fun BookDetailScreen(
                 0 -> BookInfoTab(
                     book = book,
                     onStatusChange = { newStatus ->
-                        vm.updateBookStatus(book.id, newStatus)
-                        if (newStatus == BookStatus.COMPLETED) {
-                            showRatingSheet = true
+                        // 별점 시트는 완독 저장이 성공한 뒤에만 띄운다
+                        vm.updateBookStatus(book.id, newStatus) {
+                            if (newStatus == BookStatus.COMPLETED) {
+                                showRatingSheet = true
+                            }
                         }
                     },
                     onTypeChange = { newType -> vm.updateBookType(book.id, newType) },

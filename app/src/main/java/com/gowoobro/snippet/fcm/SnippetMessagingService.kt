@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import com.gowoobro.snippet.BuildConfig
 import com.gowoobro.snippet.MainActivity
 import com.gowoobro.snippet.R
 import com.gowoobro.snippet.core.di.appContainer
@@ -33,7 +34,8 @@ private const val NOTIFICATION_ID = 1001
 class SnippetMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
-        Log.d(TAG, "FCM 토큰 갱신: $token")
+        // 토큰은 이 기기로 푸시를 보낼 수 있는 자격이므로 릴리스 로그(logcat)에 남기지 않는다
+        if (BuildConfig.DEBUG) Log.d(TAG, "FCM 토큰 갱신: ${token.take(8)}…")
         // 갱신된 토큰을 서버에 등록 (로그인 상태가 아니면 safeApiCall 내부에서 401 처리됨)
         val tokenManager = FcmTokenManager(
             userApi = appContainer.userApi,

@@ -150,6 +150,9 @@ fun DashboardTabScreen(
                     contentBottomPadding = contentBottomPadding,
                     onUpdateGoal = vm::updateGoal,
                     onRefresh = vm::refresh,
+                    onPrevMonth = vm::prevMonth,
+                    onNextMonth = vm::nextMonth,
+                    onRetryDailyPages = vm::retryDailyPages,
                     onNavigateToCalendar = { onNavigateToCalendar(state.selectedYear, state.selectedMonth) },
                     onNavigateToStats = onNavigateToStats,
                     onRecommendationClick = { book -> onNavigateToBookSearch(book.title) },
@@ -220,6 +223,9 @@ private fun DashboardStatsTab(
     contentBottomPadding: Dp,
     onUpdateGoal: (Int) -> Unit,
     onRefresh: () -> Unit,
+    onPrevMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    onRetryDailyPages: () -> Unit,
     onNavigateToCalendar: () -> Unit,
     onNavigateToStats: () -> Unit,
     onRecommendationClick: (com.gowoobro.snippet.core.model.BookRecommendDto) -> Unit = {},
@@ -306,6 +312,24 @@ private fun DashboardStatsTab(
                     currentStreak = state.streak.currentStreak,
                     maxStreak = state.streak.maxStreak,
                     lastReadDate = state.streak.lastReadDate,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+
+            // 일별 읽은 페이지 — 선택 월 기준 (타이머 미사용자도 진도 수정만으로 집계됨)
+            item {
+                val now = LocalDate.now()
+                DailyPagesSection(
+                    year = state.selectedYear,
+                    month = state.selectedMonth,
+                    dailyPages = state.dailyPages,
+                    isLoading = state.isDailyPagesLoading,
+                    errorMessage = state.dailyPagesError,
+                    onPrevMonth = onPrevMonth,
+                    onNextMonth = onNextMonth,
+                    // ViewModel.nextMonth와 같은 규칙 — 이번 달 이후로는 이동 불가
+                    nextEnabled = state.selectedYear * 12 + state.selectedMonth < now.year * 12 + now.monthValue,
+                    onRetry = onRetryDailyPages,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
             }

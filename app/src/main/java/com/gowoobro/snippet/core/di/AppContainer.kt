@@ -18,6 +18,7 @@ import com.gowoobro.snippet.core.network.api.AuthApi
 import com.gowoobro.snippet.core.network.api.BookApi
 import com.gowoobro.snippet.core.network.api.OcrApi
 import com.gowoobro.snippet.core.network.api.ReadingGoalApi
+import com.gowoobro.snippet.core.network.api.ReadingLogApi
 import com.gowoobro.snippet.core.network.api.ReadingSessionApi
 import com.gowoobro.snippet.core.network.api.RecordApi
 import com.gowoobro.snippet.core.network.api.SnippetApi
@@ -180,6 +181,7 @@ class AppContainer(context: Context) {
     val bookApi: BookApi = retrofit.create()
     val readingSessionApi: ReadingSessionApi = retrofit.create()
     val readingGoalApi: ReadingGoalApi = retrofit.create()
+    val readingLogApi: ReadingLogApi = retrofit.create()
     val suggestionApi: SuggestionApi = retrofit.create()
     val ocrApi: OcrApi = retrofit.create()
     val userApi: UserApi = retrofit.create()

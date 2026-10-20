@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.gowoobro.snippet.core.di.AppContainer
 import com.gowoobro.snippet.core.model.BookRecommendDto
 import com.gowoobro.snippet.core.model.CategoryStatsDto
+import com.gowoobro.snippet.core.model.DailyPagesDto
 import com.gowoobro.snippet.core.model.MonthlyStatsDto
 import com.gowoobro.snippet.core.model.ReadingGoalDto
 import com.gowoobro.snippet.core.model.ReadingGoalUpdateRequest
@@ -41,6 +42,10 @@ data class DashboardUiState(
     val readingGoal: ReadingGoalDto = ReadingGoalDto.empty(LocalDate.now().year),
     // 스트릭
     val streak: StreakDto = StreakDto(),
+    // 선택 월의 일별 읽은 페이지 (pages > 0인 날만 — 빈 날은 UI에서 0으로 채움)
+    val dailyPages: List<DailyPagesDto> = emptyList(),
+    val isDailyPagesLoading: Boolean = false,
+    val dailyPagesError: String? = null,
     // 최근 세션
     val recentSessions: List<ReadingSessionDto> = emptyList(),
     // 통계 상세 — 월별(현재 년)
@@ -77,6 +82,10 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
+    // init의 loadAll()이 Main.immediate로 즉시 loadDailyPages를 호출하므로 init보다 먼저 선언해야 한다
+    // (뒤에 두면 필드 초기화가 이미 할당된 Job을 null로 덮어쓴다)
+    private var dailyPagesJob: Job? = null
+
     init {
         loadAll()
         // 상세/서재 탭에서 책 상태·진도가 바뀌면 대시보드 목록·통계도 조용히 갱신
@@ -110,6 +119,10 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
             val goalDeferred = async {
                 safeApiCall { container.readingGoalApi.get(now.year) }.getOrNull()
             }
+            // 진도 변경은 일별 페이지/스트릭 집계에도 반영된다
+            val streakDeferred = async {
+                safeApiCall { container.readingSessionApi.getStreak() }.getOrNull()
+            }
             val monthlyStatsDeferred = async {
                 safeApiCall { container.userBookStatsApi.getMonthly(state.statsYear) }.getOrNull()
             }
@@ -126,6 +139,7 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
             val monthlyBooks = monthlyBooksDeferred.await()
             val progress = progressDeferred.await()
             val goal = goalDeferred.await()
+            val streak = streakDeferred.await()
             val monthlyStats = monthlyStatsDeferred.await()
             val yearlyStats = yearlyStatsDeferred.await()
             val categoryStats = categoryStatsDeferred.await()
@@ -135,6 +149,7 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
                     monthlyBooks = monthlyBooks ?: it.monthlyBooks,
                     progressBooks = progress ?: it.progressBooks,
                     readingGoal = goal ?: it.readingGoal,
+                    streak = streak ?: it.streak,
                     monthlyStats = monthlyStats ?: it.monthlyStats,
                     yearlyStats = yearlyStats ?: it.yearlyStats,
                     categoryStats = categoryStats ?: it.categoryStats,
@@ -142,6 +157,7 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
                 )
             }
         }
+        loadDailyPages(_uiState.value.selectedYear, _uiState.value.selectedMonth, silent = true)
     }
 
     /** 전체 데이터 병렬 로드 */
@@ -151,6 +167,7 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
 
             val state = _uiState.value
             val now = LocalDate.now()
+            loadDailyPages(state.selectedYear, state.selectedMonth)
 
             val monthlyBooksDeferred = async {
                 safeApiCall {
@@ -226,12 +243,48 @@ class DashboardViewModel(private val container: AppContainer) : ViewModel() {
     private var monthJob: Job? = null
     private var statsYearJob: Job? = null
 
+    /**
+     * 일별 읽은 페이지 조회.
+     * @param silent true면 기존 데이터를 유지한 채 조용히 갱신하고, 실패해도 기존 값을 유지한다
+     *               (다른 화면의 진도 변경 반영용).
+     */
+    private fun loadDailyPages(year: Int, month: Int, silent: Boolean = false) {
+        dailyPagesJob?.cancel()
+        if (!silent) {
+            _uiState.update {
+                it.copy(dailyPages = emptyList(), isDailyPagesLoading = true, dailyPagesError = null)
+            }
+        }
+        dailyPagesJob = viewModelScope.launch {
+            when (val result = safeApiCall { container.readingLogApi.getDaily(year, month) }) {
+                is AppResult.Success -> _uiState.update {
+                    it.copy(dailyPages = result.data, isDailyPagesLoading = false, dailyPagesError = null)
+                }
+                is AppResult.Failure -> _uiState.update {
+                    // 조용한 갱신 실패는 기존 표시를 유지 (진행 중이던 로딩을 대체한 경우만 에러 노출)
+                    if (silent && !it.isDailyPagesLoading) {
+                        it
+                    } else {
+                        it.copy(isDailyPagesLoading = false, dailyPagesError = result.error.message)
+                    }
+                }
+            }
+        }
+    }
+
+    /** 일별 페이지 카드의 "다시 시도" */
+    fun retryDailyPages() {
+        val state = _uiState.value
+        loadDailyPages(state.selectedYear, state.selectedMonth)
+    }
+
     /** 선택 월 변경 → 해당 월 책 재조회 */
     fun changeMonth(year: Int, month: Int) {
         _uiState.update { it.copy(selectedYear = year, selectedMonth = month) }
         // 연도가 바뀌면 연도 스코프 통계(월별 차트/카테고리/인사이트)도 함께 갱신해야 한다.
         // (그대로 두면 대시보드의 월별 완독 차트·카테고리 도넛이 이전 연도 데이터로 남는다)
         if (year != _uiState.value.statsYear) changeStatsYear(year)
+        loadDailyPages(year, month)
         monthJob?.cancel()
         monthJob = viewModelScope.launch {
             val result = safeApiCall { container.userBookApi.getMonthly(year, month) }

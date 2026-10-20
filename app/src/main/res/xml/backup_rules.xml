@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11(API 30) 이하 자동 백업 규칙. data_extraction_rules.xml 과 동일하게 토큰 저장소만 제외. -->
+<full-backup-content>
+    <!-- JWT access/refresh 토큰이 설정과 함께 평문으로 들어 있는 DataStore -->
+    <exclude domain="file" path="datastore/snippet_prefs.preferences_pb" />
+    <!-- Flutter 시절 토큰 저장소 (Keystore 키는 백업되지 않아 복원돼도 복호화 불가) -->
+    <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+    <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+</full-backup-content>

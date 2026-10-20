@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12(API 31)+ 클라우드 백업·기기 간 이전 규칙.
+     로그인 토큰이 다른 기기로 복제되지 않게 토큰 저장소만 제외한다. 복원 후에는 재로그인 필요. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- JWT access/refresh 토큰이 설정과 함께 평문으로 들어 있는 DataStore -->
+        <exclude domain="file" path="datastore/snippet_prefs.preferences_pb" />
+        <!-- Flutter 시절 토큰 저장소 (Keystore 키는 백업되지 않아 복원돼도 복호화 불가) -->
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <!-- JWT access/refresh 토큰이 설정과 함께 평문으로 들어 있는 DataStore -->
+        <exclude domain="file" path="datastore/snippet_prefs.preferences_pb" />
+        <!-- Flutter 시절 토큰 저장소 (Keystore 키는 백업되지 않아 복원돼도 복호화 불가) -->
+        <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage.xml" />
+    </device-transfer>
+</data-extraction-rules>

@@ -95,6 +95,7 @@ fun AddRecordScreen(
     var tag by remember { mutableStateOf("") }
     var pageStr by remember { mutableStateOf("") }
     var rating by remember { mutableStateOf(0) }
+    var isPublic by remember { mutableStateOf(false) }
     var bookDropdownExpanded by remember { mutableStateOf(false) }
 
     // OCR 플로우 상태
@@ -221,6 +222,7 @@ fun AddRecordScreen(
                                     text = text.trim(),
                                     tag = tag.trim().takeIf { it.isNotBlank() },
                                     relatedPage = pageStr.toIntOrNull(),
+                                    isPublic = selectedType == RecordType.SNIPPET && isPublic,
                                     onSuccess = {
                                         scope.launch {
                                             snackbarHostState.showSnackbar("기록이 저장되었습니다")
@@ -388,6 +390,11 @@ fun AddRecordScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                 )
+            }
+
+            // 밑줄이면 스와이프 카드 공개 여부 (기본 비공개)
+            if (selectedType == RecordType.SNIPPET) {
+                RecordVisibilityRow(isPublic = isPublic, onChange = { isPublic = it })
             }
 
             // 리뷰 타입이면 별점 입력

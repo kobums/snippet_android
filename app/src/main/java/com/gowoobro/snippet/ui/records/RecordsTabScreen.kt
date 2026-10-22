@@ -454,6 +454,14 @@ private fun RecordCard(record: RecordDto, onClick: () -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // 스와이프 카드에 공개된 밑줄
+                    if (record.type == RecordType.SNIPPET && record.isPublic) {
+                        Text(
+                            text = "공개",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                     if (record.relatedPage != null) {
                         Text(
                             text = "p.${record.relatedPage}",

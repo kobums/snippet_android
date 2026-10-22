@@ -150,6 +150,7 @@ class RecordsViewModel(private val container: AppContainer) : ViewModel() {
         text: String,
         tag: String?,
         relatedPage: Int?,
+        isPublic: Boolean,
         onSuccess: () -> Unit,
         onError: (String) -> Unit,
     ) {
@@ -163,6 +164,7 @@ class RecordsViewModel(private val container: AppContainer) : ViewModel() {
                         text = text,
                         tag = tag?.takeIf { it.isNotBlank() },
                         relatedPage = relatedPage,
+                        isPublic = isPublic,
                     ),
                 )
             }
@@ -189,6 +191,7 @@ class RecordsViewModel(private val container: AppContainer) : ViewModel() {
         text: String?,
         tag: String?,
         relatedPage: Int?,
+        isPublic: Boolean?,
         onSuccess: () -> Unit,
         onError: (String) -> Unit,
     ) {
@@ -202,6 +205,7 @@ class RecordsViewModel(private val container: AppContainer) : ViewModel() {
                         text = text,
                         tag = tag?.takeIf { it.isNotBlank() },
                         relatedPage = relatedPage,
+                        isPublic = isPublic,
                     ),
                 )
             }

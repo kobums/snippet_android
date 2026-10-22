@@ -25,6 +25,8 @@ data class RecordDto(
     val relatedPage: Int? = null,
     /** ISO LocalDateTime 문자열 */
     val createDate: String = "",
+    /** 스와이프 카드 공개 여부 (밑줄만, 기본 비공개). 구 서버 응답엔 없어 false. */
+    val isPublic: Boolean = false,
 )
 
 /**
@@ -38,6 +40,8 @@ data class RecordAddRequest(
     val text: String,
     val tag: String? = null,
     val relatedPage: Int? = null,
+    /** 스와이프 카드 공개 (밑줄만) */
+    val isPublic: Boolean? = null,
 )
 
 /** PATCH /records/{id} — null 필드는 바디에서 생략 */
@@ -47,4 +51,5 @@ data class RecordUpdateRequest(
     val text: String? = null,
     val tag: String? = null,
     val relatedPage: Int? = null,
+    val isPublic: Boolean? = null,
 )

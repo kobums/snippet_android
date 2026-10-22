@@ -80,6 +80,7 @@ fun EditRecordScreen(
     var tag by remember { mutableStateOf(record.tag ?: "") }
     var pageStr by remember { mutableStateOf(record.relatedPage?.toString() ?: "") }
     var rating by remember { mutableStateOf(0) }
+    var isPublic by remember { mutableStateOf(record.isPublic) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
     val isDark = isSystemInDarkTheme()
@@ -155,6 +156,7 @@ fun EditRecordScreen(
                                     text = text.trim(),
                                     tag = tag.trim().takeIf { it.isNotBlank() },
                                     relatedPage = pageStr.toIntOrNull(),
+                                    isPublic = selectedType == RecordType.SNIPPET && isPublic,
                                     onSuccess = {
                                         scope.launch {
                                             snackbarHostState.showSnackbar("기록이 수정되었습니다")
@@ -236,6 +238,11 @@ fun EditRecordScreen(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                 )
+            }
+
+            // 밑줄이면 스와이프 카드 공개 여부 (기본 비공개)
+            if (selectedType == RecordType.SNIPPET) {
+                RecordVisibilityRow(isPublic = isPublic, onChange = { isPublic = it })
             }
 
             // 리뷰 타입이면 별점 입력

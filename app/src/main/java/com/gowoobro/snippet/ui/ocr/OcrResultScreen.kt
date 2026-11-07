@@ -9,14 +9,17 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -44,7 +47,12 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -54,9 +62,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import com.gowoobro.snippet.core.di.AppContainer
 import com.gowoobro.snippet.core.di.appContainer
 import com.gowoobro.snippet.core.model.OcrEngine
@@ -98,8 +108,9 @@ fun OcrResultScreen(
     val container = context.appContainer
 
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var phase by remember { mutableStateOf<OcrPhase>(OcrPhase.Selecting) }
-    var editableText by remember { mutableStateOf("") }
+    // 폴더블 접기·펴기/회전으로 Activity가 다시 만들어져도 단계·인식 결과를 유지한다 (비트맵은 Uri에서 다시 읽음)
+    var phase by rememberSaveable(stateSaver = OcrPhaseSaver) { mutableStateOf<OcrPhase>(OcrPhase.Selecting) }
+    var editableText by rememberSaveable { mutableStateOf("") }
 
     // 업라이트 Bitmap 로드 (EXIF 회전 반영)
     LaunchedEffect(imageUri) {
@@ -109,8 +120,8 @@ fun OcrResultScreen(
         if (loaded == null) {
             phase = OcrPhase.Error("이미지를 불러올 수 없습니다")
         } else {
+            // 복원된 단계(인식 결과 편집 중 등)를 덮어쓰지 않는다 — 처음 진입 시 기본값이 이미 Selecting
             bitmap = loaded
-            phase = OcrPhase.Selecting
         }
     }
 
@@ -298,7 +309,10 @@ fun OcrResultScreen(
     }
 }
 
-/** 화면(디스플레이) 좌표계의 수평 밑줄 데이터. */
+/**
+ * 이미지 표시 영역 기준 정규화(0~1, 좌상단 원점) 좌표의 수평 밑줄.
+ * 화면 크기가 바뀌어도(폴더블 접기·펴기, 회전, 창 크기 변경) 이미지 위 같은 줄에 붙어 있다.
+ */
 private data class Underline(
     val id: Long,
     val startX: Float,
@@ -307,8 +321,8 @@ private data class Underline(
     val height: Float,
     val selected: Boolean = false,
 ) {
-    /** 밑줄을 감싸는 사각형(디스플레이 좌표). */
-    val rect: Rect
+    /** 정규화 영역 사각형 (OCR 영역). */
+    val normalizedRect: Rect
         get() = Rect(
             left = min(startX, endX),
             top = centerY - height / 2f,
@@ -316,7 +330,56 @@ private data class Underline(
             bottom = centerY + height / 2f,
         )
 
-    fun contains(p: Offset): Boolean = rect.contains(p)
+    /** 현재 이미지 표시 영역 [frame] 기준 화면 좌표 사각형 (렌더링·탭 판정). */
+    fun rectIn(frame: Rect): Rect {
+        val r = normalizedRect
+        return Rect(
+            left = frame.left + r.left * frame.width,
+            top = frame.top + r.top * frame.height,
+            right = frame.left + r.right * frame.width,
+            bottom = frame.top + r.bottom * frame.height,
+        )
+    }
+
+    companion object {
+        /** 화면 좌표 드래그 결과(minX..maxX, 평균 Y, 높이)를 [frame] 기준 정규화 밑줄로 만든다. */
+        fun fromDisplay(id: Long, minX: Float, maxX: Float, centerY: Float, height: Float, frame: Rect): Underline {
+            val w = max(frame.width, 1f)
+            val h = max(frame.height, 1f)
+            return Underline(
+                id = id,
+                startX = (minX - frame.left) / w,
+                endX = (maxX - frame.left) / w,
+                centerY = (centerY - frame.top) / h,
+                height = height / h,
+            )
+        }
+    }
+}
+
+/** 정규화 밑줄 목록 저장 — 선택 상태는 버리고 좌표만 4개씩 납작하게 담는다. */
+private val UnderlinesSaver = listSaver<SnapshotStateList<Underline>, Float>(
+    save = { list -> list.flatMap { listOf(it.startX, it.endX, it.centerY, it.height) } },
+    restore = { flat ->
+        flat.chunked(4).mapIndexed { i, (sx, ex, cy, h) ->
+            Underline(id = i + 1L, startX = sx, endX = ex, centerY = cy, height = h)
+        }.toMutableStateList()
+    },
+)
+
+/** ContentScale.Fit(레터박스)로 그려진 이미지의 실제 표시 영역. */
+private fun imageFrame(canvasSize: Size, bitmap: Bitmap): Rect {
+    val imgW = bitmap.width.toFloat()
+    val imgH = bitmap.height.toFloat()
+    if (imgW <= 0f || imgH <= 0f || canvasSize.width <= 0f || canvasSize.height <= 0f) {
+        return Rect(Offset.Zero, canvasSize)
+    }
+    val scale = min(canvasSize.width / imgW, canvasSize.height / imgH)
+    val w = imgW * scale
+    val h = imgH * scale
+    val left = (canvasSize.width - w) / 2f
+    val top = (canvasSize.height - h) / 2f
+    return Rect(left, top, left + w, top + h)
 }
 
 /**
@@ -337,8 +400,10 @@ private fun UnderlineHighlighter(
     val highlightColor = Color(0xFFFFEB3B) // 노란색
     val selectColor = Color(0xFF2196F3) // 파란색
 
-    val underlines = remember { mutableStateListOf<Underline>() }
+    // 정규화 좌표라 화면 크기가 바뀌어도 그대로 쓰고, Activity 재생성에도 살아남는다
+    val underlines = rememberSaveable(saver = UnderlinesSaver) { mutableStateListOf<Underline>() }
     var canvasSize by remember { mutableStateOf(Size.Zero) }
+    val frame = imageFrame(canvasSize, bitmap)
 
     // 드래그 진행 상태
     var dragMinX by remember { mutableStateOf(0f) }
@@ -349,26 +414,33 @@ private fun UnderlineHighlighter(
     var dragCount by remember { mutableStateOf(0) }
     var dragging by remember { mutableStateOf(false) }
 
+    LaunchedEffect(canvasSize) {
+        // 드래그 중에 화면 크기가 바뀌면 이전 좌표계의 점들이라 진행 중 밑줄은 버린다
+        dragging = false
+        dragCount = 0
+    }
+
+    /** 진행 중 드래그의 미리보기 밑줄 (정규화 좌표). */
     fun previewUnderline(): Underline? {
         if (!dragging || dragCount < 2) return null
         val avgY = dragSumY / dragCount
         val h = ((dragMaxY - dragMinY) * 3f).coerceIn(40f, 80f)
-        return Underline(
-            id = -1L,
-            startX = dragMinX,
-            endX = dragMaxX,
-            centerY = avgY,
-            height = h,
-        )
+        return Underline.fromDisplay(id = -1L, minX = dragMinX, maxX = dragMaxX, centerY = avgY, height = h, frame = frame)
     }
+
+    /** 드래그 점을 이미지 표시 영역 안으로 자른다 (레터박스 여백에서 시작해도 이미지 가장자리에 붙도록). */
+    fun clampToImage(p: Offset): Offset = Offset(
+        x = p.x.coerceIn(frame.left, frame.right),
+        y = p.y.coerceIn(frame.top, frame.bottom),
+    )
 
     val selectedId = underlines.firstOrNull { it.selected }?.id
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // 안내 메시지
+    // 안내 메시지
+    val guidance: @Composable (Modifier) -> Unit = { modifier ->
         Surface(
             color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = modifier,
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
@@ -384,11 +456,12 @@ private fun UnderlineHighlighter(
                 )
             }
         }
+    }
 
+    // 이미지 + 밑줄 캔버스
+    val imageArea: @Composable (Modifier) -> Unit = { modifier ->
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+            modifier = modifier,
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -400,17 +473,19 @@ private fun UnderlineHighlighter(
             Canvas(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(Unit) {
+                    .onSizeChanged { canvasSize = it.toSize() }
+                    .pointerInput(frame) {
                         detectTapGestures { tap ->
-                            val hit = underlines.indexOfLast { it.contains(tap) }
+                            val hit = underlines.indexOfLast { it.rectIn(frame).contains(tap) }
                             for (i in underlines.indices) {
                                 underlines[i] = underlines[i].copy(selected = i == hit && hit >= 0)
                             }
                         }
                     }
-                    .pointerInput(Unit) {
+                    .pointerInput(frame) {
                         detectDragGestures(
-                            onDragStart = { offset ->
+                            onDragStart = { start ->
+                                val offset = clampToImage(start)
                                 dragging = true
                                 dragMinX = offset.x
                                 dragMaxX = offset.x
@@ -420,7 +495,7 @@ private fun UnderlineHighlighter(
                                 dragCount = 1
                             },
                             onDrag = { change, _ ->
-                                val p = change.position
+                                val p = clampToImage(change.position)
                                 dragMinX = min(dragMinX, p.x)
                                 dragMaxX = max(dragMaxX, p.x)
                                 dragMinY = min(dragMinY, p.y)
@@ -443,10 +518,9 @@ private fun UnderlineHighlighter(
                         )
                     },
             ) {
-                canvasSize = size
                 val all = underlines + listOfNotNull(previewUnderline())
                 all.forEach { u ->
-                    val r = u.rect
+                    val r = u.rectIn(frame)
                     // 1. 반투명 노란 배경
                     drawRect(
                         color = highlightColor.copy(alpha = 0.2f),
@@ -454,10 +528,11 @@ private fun UnderlineHighlighter(
                         size = Size(r.width, r.height),
                     )
                     // 2. 중앙 굵은 노란 수평선
+                    val lineY = frame.top + u.centerY * frame.height
                     drawLine(
                         color = highlightColor,
-                        start = Offset(min(u.startX, u.endX), u.centerY),
-                        end = Offset(max(u.startX, u.endX), u.centerY),
+                        start = Offset(r.left, lineY),
+                        end = Offset(r.right, lineY),
                         strokeWidth = 4.dp.toPx(),
                     )
                     // 3. 선택 테두리(파란색)
@@ -472,9 +547,12 @@ private fun UnderlineHighlighter(
                 }
             }
         }
+    }
 
+    // 선택 개수 · 삭제/지우기 · 인식 버튼
+    val controls: @Composable (Modifier) -> Unit = { modifier ->
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
@@ -531,11 +609,8 @@ private fun UnderlineHighlighter(
                 }
                 Button(
                     onClick = {
-                        val cs = canvasSize
-                        if (cs.width > 0 && cs.height > 0) {
-                            val regions = underlines.mapNotNull { it.toImageRect(cs, bitmap) }
-                            if (regions.isNotEmpty()) onRecognizeRegions(regions)
-                        }
+                        val regions = underlines.mapNotNull { it.toImageRect(bitmap) }
+                        if (regions.isNotEmpty()) onRecognizeRegions(regions)
                     },
                     enabled = underlines.isNotEmpty(),
                     modifier = Modifier.weight(1f),
@@ -545,33 +620,47 @@ private fun UnderlineHighlighter(
             }
         }
     }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        if (maxWidth > maxHeight) {
+            // 가로로 넓은 화면(폰·태블릿 가로)에서 세로로 쌓으면 이미지 영역이 0으로 눌린다 → 이미지 옆에 버튼·안내.
+            // 높이가 낮으니 인식 버튼을 위에 둬서 스크롤 없이 누를 수 있게 한다.
+            Row(modifier = Modifier.fillMaxSize()) {
+                imageArea(Modifier.weight(1f).fillMaxHeight())
+                Column(
+                    modifier = Modifier
+                        .width(320.dp)
+                        .fillMaxHeight()
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    controls(Modifier.fillMaxWidth())
+                    guidance(Modifier.fillMaxWidth())
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                guidance(Modifier.fillMaxWidth())
+                imageArea(Modifier.fillMaxWidth().weight(1f))
+                controls(Modifier)
+            }
+        }
+    }
 }
 
 /**
- * 디스플레이 좌표 밑줄을 이미지 픽셀 좌표 Rect로 변환한다.
- *
- * 이미지는 ContentScale.Fit(letterbox)로 그려지므로, 캔버스 크기 [canvasSize]와
- * 비트맵 원본 크기로부터 표시 scale·offset을 계산해 역변환한다.
- * 결과는 이미지 경계로 clamp된다. 너무 작거나 이미지 밖이면 null.
+ * 정규화 밑줄을 이미지 픽셀 좌표 Rect로 변환한다 (이미지 경계로 clamp).
+ * 너무 작거나 이미지 밖이면 null.
  */
-private fun Underline.toImageRect(canvasSize: Size, bitmap: Bitmap): AndroidRect? {
+private fun Underline.toImageRect(bitmap: Bitmap): AndroidRect? {
     val imgW = bitmap.width.toFloat()
     val imgH = bitmap.height.toFloat()
     if (imgW <= 0f || imgH <= 0f) return null
 
-    // ContentScale.Fit: 가로/세로 중 작은 배율로 맞춤 → 레터박스 오프셋 발생
-    val scale = min(canvasSize.width / imgW, canvasSize.height / imgH)
-    if (scale <= 0f) return null
-    val displayedW = imgW * scale
-    val displayedH = imgH * scale
-    val offsetX = (canvasSize.width - displayedW) / 2f
-    val offsetY = (canvasSize.height - displayedH) / 2f
-
-    val r = rect
-    val left = ((r.left - offsetX) / scale).coerceIn(0f, imgW)
-    val right = ((r.right - offsetX) / scale).coerceIn(0f, imgW)
-    val top = ((r.top - offsetY) / scale).coerceIn(0f, imgH)
-    val bottom = ((r.bottom - offsetY) / scale).coerceIn(0f, imgH)
+    val r = normalizedRect
+    val left = (r.left * imgW).coerceIn(0f, imgW)
+    val right = (r.right * imgW).coerceIn(0f, imgW)
+    val top = (r.top * imgH).coerceIn(0f, imgH)
+    val bottom = (r.bottom * imgH).coerceIn(0f, imgH)
 
     val px = left.toInt()
     val py = top.toInt()
@@ -623,3 +712,21 @@ private sealed interface OcrPhase {
     data object Success : OcrPhase
     data class Error(val message: String) : OcrPhase
 }
+
+/** 단계 저장 — 처리 중이던 인식은 Activity 재생성과 함께 취소되므로 영역 선택으로 되돌린다. */
+private val OcrPhaseSaver = Saver<OcrPhase, String>(
+    save = { phase ->
+        when (phase) {
+            OcrPhase.Selecting, OcrPhase.Processing -> "selecting"
+            OcrPhase.Success -> "success"
+            is OcrPhase.Error -> "error:" + phase.message
+        }
+    },
+    restore = { saved ->
+        when {
+            saved == "success" -> OcrPhase.Success
+            saved.startsWith("error:") -> OcrPhase.Error(saved.removePrefix("error:"))
+            else -> OcrPhase.Selecting
+        }
+    },
+)

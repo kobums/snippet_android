@@ -88,14 +88,16 @@ fun AddRecordScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // 폼 상태
-    var selectedType by remember { mutableStateOf(initialType) }
-    var selectedBook by remember { mutableStateOf(books.firstOrNull()) }
-    var text by remember { mutableStateOf(initialText) }
-    var tag by remember { mutableStateOf("") }
-    var pageStr by remember { mutableStateOf("") }
-    var rating by remember { mutableStateOf(0) }
-    var isPublic by remember { mutableStateOf(false) }
+    // 폼 상태 — 폴더블 접기·펴기/회전으로 Activity가 다시 만들어져도 입력(OCR로 넣은 본문 포함)이 남도록 저장한다
+    var selectedType by rememberSaveable { mutableStateOf(initialType) }
+    // 책은 id만 저장하고 목록에서 다시 찾는다 (책 목록은 화면 진입 후 비동기로 채워진다)
+    var selectedBookId by rememberSaveable { mutableStateOf(books.firstOrNull()?.id) }
+    val selectedBook = books.firstOrNull { it.id == selectedBookId }
+    var text by rememberSaveable { mutableStateOf(initialText) }
+    var tag by rememberSaveable { mutableStateOf("") }
+    var pageStr by rememberSaveable { mutableStateOf("") }
+    var rating by rememberSaveable { mutableStateOf(0) }
+    var isPublic by rememberSaveable { mutableStateOf(false) }
     var bookDropdownExpanded by remember { mutableStateOf(false) }
 
     // OCR 플로우 상태
@@ -302,7 +304,7 @@ fun AddRecordScreen(
                             DropdownMenuItem(
                                 text = { Text(book.title) },
                                 onClick = {
-                                    selectedBook = book
+                                    selectedBookId = book.id
                                     bookDropdownExpanded = false
                                 },
                             )

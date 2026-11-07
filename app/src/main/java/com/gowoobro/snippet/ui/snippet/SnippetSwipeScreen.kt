@@ -57,6 +57,8 @@ import com.gowoobro.snippet.ui.components.EmptyState
 import com.gowoobro.snippet.ui.theme.QuoteTextStyle
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * 스와이프 탭 — 카드 스택 + 좋아요/패스 버튼.
@@ -77,7 +79,8 @@ fun SnippetSwipeScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val screenWidthDp = LocalConfiguration.current.screenWidthDp.toFloat()
-    val thresholdDp = screenWidthDp * 0.40f
+    // 넓은 화면(폴더블 안쪽·태블릿)에서도 끌어야 하는 거리가 폰과 같도록 카드+여백 폭으로 상한
+    val thresholdDp = min(screenWidthDp, MAX_STACK_WIDTH_DP) * 0.40f
 
     Box(
         modifier = modifier
@@ -128,6 +131,7 @@ fun SnippetSwipeScreen(
                         TopSwipeCard(
                             snippet = visibleCards[0],
                             thresholdDp = thresholdDp,
+                            screenWidthDp = screenWidthDp,
                             onLike = { onLike(visibleCards[0]) },
                             onPass = { onPass(visibleCards[0]) },
                         )
@@ -210,11 +214,15 @@ private fun BackCard(stackIndex: Int) {
     }
 }
 
+/** 카드 최대 폭(400dp) + 좌우 여백(24dp × 2) — 스와이프 임계값 기준 폭의 상한. */
+private const val MAX_STACK_WIDTH_DP = 448f
+
 /** 최상단 카드 — 드래그 제스처 + LIKE/NOPE 오버레이 */
 @Composable
 private fun TopSwipeCard(
     snippet: Snippet,
     thresholdDp: Float,
+    screenWidthDp: Float,
     onLike: () -> Unit,
     onPass: () -> Unit,
 ) {
@@ -234,7 +242,7 @@ private fun TopSwipeCard(
                 translationX = offsetX.value
                 rotationZ = rotation
             }
-            .pointerInput(snippet.id) {
+            .pointerInput(snippet.id, thresholdDp, screenWidthDp) {
                 val thresholdPx = thresholdDp * density
                 detectDragGestures(
                     onDragEnd = {
@@ -242,10 +250,10 @@ private fun TopSwipeCard(
                             val currentOffset = offsetX.value
                             if (abs(currentOffset) > thresholdPx) {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                val target = if (currentOffset > 0)
-                                    size.width.toFloat() * 1.5f
-                                else
-                                    -size.width.toFloat() * 1.5f
+                                // 가운데 놓인 카드가 끝까지 화면 밖으로 나가도록 — 폰에선 카드 폭 1.5배 그대로,
+                                // 넓은 화면에선 화면 폭만큼 (카드 폭 기준이면 폴더블 안쪽에서 카드 끝이 남는다)
+                                val flyDistance = max(size.width * 1.5f, screenWidthDp * density)
+                                val target = if (currentOffset > 0) flyDistance else -flyDistance
                                 offsetX.animateTo(target, animationSpec = tween(200))
                                 if (currentOffset > 0) onLike() else onPass()
                             } else {

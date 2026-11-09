@@ -14,7 +14,7 @@ data class BookSearchDto(
     val totalPage: Int? = null,
 )
 
-/** GET /books/popular 응답 항목 (국립중앙도서관, 전 필드 null-safe 폴백) */
+/** GET /books/popular 응답 항목 (YES24 베스트셀러 — 도서관정보나루 폴백일 때만 loanCount, 전 필드 null-safe 폴백) */
 @Serializable
 data class PopularBookDto(
     val rank: Int = 0,
@@ -26,7 +26,10 @@ data class PopularBookDto(
     val kdcName: String = "",
     val loanCount: Int = 0,
     val coverUrl: String = "",
-)
+) {
+    /** 분류 마지막 단계 ("문학 > 한국문학 > 소설" → "소설", YES24는 "소설/시/희곡" 그대로). */
+    val categoryLabel: String get() = kdcName.substringAfterLast('>').trim()
+}
 
 /** GET /books/recommend 응답 항목 (실패 시 빈 배열 흡수) */
 @Serializable

@@ -69,7 +69,7 @@ import com.gowoobro.snippet.ui.components.EmptyState
 import kotlinx.coroutines.launch
 
 /**
- * 인기 도서 화면 — 국립중앙도서관 인기 대출 도서 목록.
+ * 인기 도서 화면 — YES24 베스트셀러 (서버가 실패 시 도서관정보나루 인기 대출로 대체).
  * 필터 칩(기간/KDC 장르/연령/성별) + 무한 스크롤.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -158,7 +158,16 @@ fun PopularBooksScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("인기 도서") },
+                title = {
+                    Column {
+                        Text("인기 도서")
+                        Text(
+                            "YES24 베스트셀러",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로")
@@ -335,9 +344,10 @@ private fun PopularBookItem(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (book.publisher.isNotBlank()) {
+                val publisherLine = listOf(book.publisher, book.categoryLabel).filter { it.isNotBlank() }.joinToString(" · ")
+                if (publisherLine.isNotBlank()) {
                     Text(
-                        text = book.publisher,
+                        text = publisherLine,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

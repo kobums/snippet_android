@@ -48,6 +48,7 @@ data class LibraryUiState(
     val isLoadingPopular: Boolean = false,
     val popularPage: Int = 1,
     val hasMorePopular: Boolean = true,
+    val popularFilter: PopularFilter = PopularFilter(),
     // 책 상세 - 책별 기록/세션
     val detailRecords: List<RecordDto> = emptyList(),
     val detailSessions: List<ReadingSessionDto> = emptyList(),
@@ -378,17 +379,39 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
 
     // ─── 인기 도서 ────────────────────────────────────────────────
 
+    private var popularJob: Job? = null
+
+    /** 필터를 바꾸면 처음부터 다시 — 진행 중이던 요청은 취소해 이전 필터 결과가 덮어쓰지 않게 한다. */
+    fun setPopularFilter(filter: PopularFilter) {
+        if (filter == _uiState.value.popularFilter) return
+        _uiState.update { it.copy(popularFilter = filter) }
+        loadPopularBooks(reset = true)
+    }
+
     fun loadPopularBooks(reset: Boolean = false) {
         val state = _uiState.value
         if (!reset && (state.isLoadingPopular || !state.hasMorePopular)) return
-        viewModelScope.launch {
+        if (reset) popularJob?.cancel()
+        popularJob = viewModelScope.launch {
             val page = if (reset) 1 else state.popularPage
             _uiState.update {
                 if (reset) it.copy(isLoadingPopular = true, popularBooks = emptyList(), popularPage = 1)
                 else it.copy(isLoadingPopular = true)
             }
-            val books = safeApiCall { container.bookApi.getPopular(pageNo = page, pageSize = 20) }
-                .getOrDefault(emptyList())
+            val filter = _uiState.value.popularFilter
+            val end = LocalDate.now()
+            val start = end.minusDays(if (filter.monthly) 30 else 7)
+            val books = safeApiCall {
+                container.bookApi.getPopular(
+                    startDt = start.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                    endDt = end.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                    kdc = filter.kdc,
+                    age = filter.age,
+                    gender = filter.gender,
+                    pageNo = page,
+                    pageSize = 20,
+                )
+            }.getOrDefault(emptyList())
             _uiState.update {
                 it.copy(
                     isLoadingPopular = false,
@@ -450,3 +473,11 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
             }
     }
 }
+
+/** 인기 도서 필터 — 서버(YES24 베스트셀러)는 기간 2주 초과면 월간, 아니면 주간 순위를 준다. */
+data class PopularFilter(
+    val monthly: Boolean = false,
+    val kdc: String? = null,
+    val age: String? = null,
+    val gender: String? = null,
+)

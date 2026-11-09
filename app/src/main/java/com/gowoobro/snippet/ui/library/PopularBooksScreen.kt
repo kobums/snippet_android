@@ -87,13 +87,10 @@ fun PopularBooksScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
-    // 필터 상태
-    var selectedPeriod by remember { mutableStateOf<String?>(null) }
-    var selectedKdc by remember { mutableStateOf<String?>(null) }
-    var selectedAge by remember { mutableStateOf<String?>(null) }
-    var selectedGender by remember { mutableStateOf<String?>(null) }
+    // 필터 상태는 ViewModel이 들고 있다 (화면을 다시 열어도 목록과 칩이 어긋나지 않게)
+    val filter = state.popularFilter
 
-    val periodOptions = listOf("주간" to null, "1개월" to "1month", "3개월" to "3month", "6개월" to "6month")
+    val periodOptions = listOf("주간" to false, "월간" to true)
     val kdcOptions = listOf("전체" to null, "문학" to "8", "사회과학" to "3", "자연과학" to "4", "철학" to "1", "역사" to "9")
     val ageOptions = listOf("전체" to null, "유아" to "0", "초등" to "1", "청소년" to "2", "성인" to "3")
     val genderOptions = listOf("전체" to null, "남성" to "M", "여성" to "F")
@@ -205,8 +202,8 @@ fun PopularBooksScreen(
                         ) {
                             periodOptions.forEach { (label, value) ->
                                 FilterChip(
-                                    selected = selectedPeriod == value,
-                                    onClick = { selectedPeriod = value },
+                                    selected = filter.monthly == value,
+                                    onClick = { vm.setPopularFilter(filter.copy(monthly = value)) },
                                     label = { Text(label) },
                                 )
                             }
@@ -218,8 +215,8 @@ fun PopularBooksScreen(
                         ) {
                             kdcOptions.forEach { (label, value) ->
                                 FilterChip(
-                                    selected = selectedKdc == value,
-                                    onClick = { selectedKdc = value },
+                                    selected = filter.kdc == value,
+                                    onClick = { vm.setPopularFilter(filter.copy(kdc = value)) },
                                     label = { Text(label) },
                                 )
                             }
@@ -231,8 +228,8 @@ fun PopularBooksScreen(
                         ) {
                             ageOptions.forEach { (label, value) ->
                                 FilterChip(
-                                    selected = selectedAge == value,
-                                    onClick = { selectedAge = value },
+                                    selected = filter.age == value,
+                                    onClick = { vm.setPopularFilter(filter.copy(age = value)) },
                                     label = { Text(label) },
                                 )
                             }
@@ -244,8 +241,8 @@ fun PopularBooksScreen(
                         ) {
                             genderOptions.forEach { (label, value) ->
                                 FilterChip(
-                                    selected = selectedGender == value,
-                                    onClick = { selectedGender = value },
+                                    selected = filter.gender == value,
+                                    onClick = { vm.setPopularFilter(filter.copy(gender = value)) },
                                     label = { Text(label) },
                                 )
                             }

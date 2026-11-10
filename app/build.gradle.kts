@@ -29,8 +29,8 @@ android {
         applicationId = "com.gowoobro.snippet"
         minSdk = 26
         targetSdk = 36
-        versionCode = 36
-        versionName = "1.0.29"
+        versionCode = 37
+        versionName = "1.0.30"
     }
 
     signingConfigs {

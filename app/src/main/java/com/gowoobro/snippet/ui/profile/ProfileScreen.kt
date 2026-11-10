@@ -23,10 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -58,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gowoobro.snippet.core.di.appContainer
@@ -315,6 +318,66 @@ fun ProfileScreen(
                         leadingContent = {
                             Icon(
                                 imageVector = Icons.Outlined.Lightbulb,
+                                contentDescription = null,
+                            )
+                        },
+                        trailingContent = {
+                            Icon(
+                                imageVector = Icons.Outlined.ChevronRight,
+                                contentDescription = null,
+                            )
+                        },
+                    )
+                }
+            }
+
+            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+
+            // 이용약관 — 브라우저로 열기
+            item {
+                Surface(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, "https://gowoobro.com/ko/app/15/terms".toUri()))
+                        }
+                    },
+                    color = MaterialTheme.colorScheme.surface,
+                ) {
+                    ListItem(
+                        headlineContent = { Text("이용약관") },
+                        leadingContent = {
+                            Icon(
+                                imageVector = Icons.Outlined.Description,
+                                contentDescription = null,
+                            )
+                        },
+                        trailingContent = {
+                            Icon(
+                                imageVector = Icons.Outlined.ChevronRight,
+                                contentDescription = null,
+                            )
+                        },
+                    )
+                }
+            }
+
+            item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp)) }
+
+            // 개인정보 처리방침 — 브라우저로 열기
+            item {
+                Surface(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, "https://gowoobro.com/ko/app/15/privacy".toUri()))
+                        }
+                    },
+                    color = MaterialTheme.colorScheme.surface,
+                ) {
+                    ListItem(
+                        headlineContent = { Text("개인정보 처리방침") },
+                        leadingContent = {
+                            Icon(
+                                imageVector = Icons.Outlined.PrivacyTip,
                                 contentDescription = null,
                             )
                         },

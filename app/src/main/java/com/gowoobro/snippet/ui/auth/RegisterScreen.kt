@@ -36,6 +36,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -202,6 +209,31 @@ fun RegisterScreen(
                     Text("가입하기", style = MaterialTheme.typography.titleMedium)
                 }
             }
+
+            // 약관 동의 안내 — 링크는 브라우저로 연다
+            val linkStyles = TextLinkStyles(
+                style = SpanStyle(
+                    color = MaterialTheme.colorScheme.primary,
+                    textDecoration = TextDecoration.Underline,
+                ),
+            )
+            Text(
+                text = buildAnnotatedString {
+                    append("가입하면 ")
+                    withLink(LinkAnnotation.Url("https://gowoobro.com/ko/app/15/terms", linkStyles)) {
+                        append("이용약관")
+                    }
+                    append(" 및 ")
+                    withLink(LinkAnnotation.Url("https://gowoobro.com/ko/app/15/privacy", linkStyles)) {
+                        append("개인정보 처리방침")
+                    }
+                    append("에 동의하는 것으로 간주됩니다.")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
